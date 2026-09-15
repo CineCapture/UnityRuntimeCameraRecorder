@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -12,6 +13,7 @@ namespace Landoria.UnityMediaRecorder
         private const int MaximumPendingReadbacks = 2;
         private VideoCaptureContext _context;
         private Camera _camera;
+        private Coroutine _captureRoutine;
         private RenderTexture _source;
         private RenderTexture _target;
         private RenderTexture _previousTarget;
@@ -23,6 +25,10 @@ namespace Landoria.UnityMediaRecorder
         private bool _ownsTarget;
         private bool _active;
         private bool _flipVertically;
+        private bool _loggedFirstRender;
+        private bool _loggedFirstReadback;
+        private int _acceptedFrames;
+        private int _rejectedFrames;
 
         public override string Name => "Unity GPU readback";
         public override VideoStreamFormat StreamFormat => VideoStreamFormat.RawRgba;
@@ -34,15 +40,19 @@ namespace Landoria.UnityMediaRecorder
             _camera = context.Camera;
             _flipVertically = context.FlipVertically;
             ValidatePreparedTarget(context.PreparedTarget, context.Width, context.Height);
-            if (Screen.width != context.Width || Screen.height != context.Height || _flipVertically)
+            bool needsResolve = context.AntiAliasingSamples > 1;
+            if (Screen.width != context.Width || Screen.height != context.Height || _flipVertically || needsResolve)
             {
-                _source = context.PreparedTarget ?? CreateTarget(Screen.width, Screen.height);
+                _source = context.PreparedTarget ?? CreateTarget(
+                    Screen.width,
+                    Screen.height,
+                    context.AntiAliasingSamples);
                 _ownsSource = context.PreparedTarget == null;
             }
 
             _target = _source == null && context.PreparedTarget != null
                 ? context.PreparedTarget
-                : CreateTarget(context.Width, context.Height);
+                : CreateTarget(context.Width, context.Height, 1);
             _ownsTarget = context.PreparedTarget == null || _source != null;
             _captureIntervalTicks = Math.Max(1L, Stopwatch.Frequency / context.MaximumFrameRate);
             _nextCaptureTimestamp = 0;
@@ -50,15 +60,20 @@ namespace Landoria.UnityMediaRecorder
             _previousEnabled = _camera.enabled;
             _camera.targetTexture = _source ?? _target;
             _active = true;
-            Camera.onPostRender += HandleCameraPostRender;
+            _captureRoutine = StartCoroutine(CaptureLoop());
             _camera.enabled = true;
+            MediaRecorderLog.WriteInfo("Unity GPU-readback video capture started.");
         }
 
         // Stops capture and releases all allocated render textures.
         public override void StopCapture()
         {
             _active = false;
-            Camera.onPostRender -= HandleCameraPostRender;
+            if (_captureRoutine != null)
+            {
+                StopCoroutine(_captureRoutine);
+                _captureRoutine = null;
+            }
             _camera.enabled = _previousEnabled;
             _camera.targetTexture = _previousTarget;
             _previousTarget = null;
@@ -79,10 +94,23 @@ namespace Landoria.UnityMediaRecorder
             }
 
             _source = null;
+            MediaRecorderLog.WriteInfo(
+                $"Unity capture frames: accepted={_acceptedFrames}, rejected={_rejectedFrames}.");
+        }
+
+        // Samples the completed camera target once per Unity frame.
+        private IEnumerator CaptureLoop()
+        {
+            var endOfFrame = new WaitForEndOfFrame();
+            while (_active)
+            {
+                yield return endOfFrame;
+                HandleCameraPostRender(_camera);
+            }
         }
 
         // Creates one sRGB render texture compatible with Unity camera output.
-        private static RenderTexture CreateTarget(int width, int height)
+        private static RenderTexture CreateTarget(int width, int height, int antiAliasingSamples)
         {
             var target = new RenderTexture(
                 width,
@@ -90,6 +118,7 @@ namespace Landoria.UnityMediaRecorder
                 0,
                 RenderTextureFormat.ARGB32,
                 RenderTextureReadWrite.sRGB);
+            target.antiAliasing = antiAliasingSamples;
             target.Create();
             return target;
         }
@@ -111,18 +140,33 @@ namespace Landoria.UnityMediaRecorder
                 return;
             }
 
+            if (!_loggedFirstRender)
+            {
+                _loggedFirstRender = true;
+                MediaRecorderLog.WriteInfo("Unity video camera produced its first rendered frame.");
+            }
+
             long timestamp = Stopwatch.GetTimestamp();
-            if (timestamp < _nextCaptureTimestamp)
+            if (_nextCaptureTimestamp != 0 && timestamp < _nextCaptureTimestamp)
             {
                 return;
             }
 
-            CaptureFrame();
-            _nextCaptureTimestamp = timestamp + _captureIntervalTicks;
+            if (_nextCaptureTimestamp == 0)
+            {
+                _nextCaptureTimestamp = timestamp;
+            }
+
+            CaptureFrame(timestamp * 1_000_000L / Stopwatch.Frequency);
+            _nextCaptureTimestamp += _captureIntervalTicks;
+            if (_nextCaptureTimestamp < timestamp - _captureIntervalTicks)
+            {
+                _nextCaptureTimestamp = timestamp + _captureIntervalTicks;
+            }
         }
 
         // Copies the completed render when needed and requests GPU readback.
-        private void CaptureFrame()
+        private void CaptureFrame(long timestampMicroseconds)
         {
             if (_source != null)
             {
@@ -140,21 +184,41 @@ namespace Landoria.UnityMediaRecorder
                 }
             }
             _pendingReadbacks++;
-            AsyncGPUReadback.Request(_target, 0, TextureFormat.RGBA32, CompleteReadback);
+            AsyncGPUReadback.Request(
+                _target,
+                0,
+                TextureFormat.RGBA32,
+                request => CompleteReadback(request, timestampMicroseconds));
         }
 
         // Queues a completed GPU readback for delivery to FFmpeg.
-        private void CompleteReadback(AsyncGPUReadbackRequest request)
+        private void CompleteReadback(AsyncGPUReadbackRequest request, long timestampMicroseconds)
         {
             _pendingReadbacks--;
             if (!_active || request.hasError)
             {
+                if (request.hasError)
+                {
+                    MediaRecorderLog.WriteWarning("Unity GPU readback failed for a rendered video frame.");
+                }
                 return;
             }
 
             try
             {
-                _context.WriteFrame(request.GetData<byte>().ToArray());
+                if (_context.WriteFrame(request.GetData<byte>().ToArray(), timestampMicroseconds))
+                {
+                    _acceptedFrames++;
+                }
+                else
+                {
+                    _rejectedFrames++;
+                }
+                if (!_loggedFirstReadback)
+                {
+                    _loggedFirstReadback = true;
+                    MediaRecorderLog.WriteInfo("Unity video capture delivered its first frame.");
+                }
             }
             catch (Exception exception)
             {

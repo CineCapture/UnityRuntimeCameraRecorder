@@ -57,7 +57,8 @@ namespace Landoria.UnityMediaRecorder
             bool supported = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 &&
                              SystemInfo.graphicsDeviceVendor.IndexOf(
                                  "NVIDIA",
-                                 StringComparison.OrdinalIgnoreCase) >= 0;
+                                 StringComparison.OrdinalIgnoreCase) >= 0 &&
+                             NativeVideoCapture.IsAvailable();
             return supported ? host.AddComponent<NativeVideoCapture>() : null;
         }
 

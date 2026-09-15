@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -27,9 +28,31 @@ namespace Landoria.UnityMediaRecorder
         private bool _ownsTarget;
         private bool _active;
         private int _rejectedPackets;
+        private Coroutine _captureCoroutine;
 
         public override string Name => "D3D11 NVENC";
-        public override VideoStreamFormat StreamFormat => VideoStreamFormat.Hevc;
+        public override VideoStreamFormat StreamFormat => VideoStreamFormat.H264;
+
+        // Returns whether the native DLL and its render callback can be loaded.
+        internal static bool IsAvailable()
+        {
+            try
+            {
+                return D3D11NvencEncoderGetRenderEventFunction() != IntPtr.Zero;
+            }
+            catch (DllNotFoundException)
+            {
+                return false;
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return false;
+            }
+            catch (BadImageFormatException)
+            {
+                return false;
+            }
+        }
 
         // Allocates the GPU target and initializes the native NVENC encoder.
         public override void StartCapture(VideoCaptureContext context)
@@ -37,16 +60,20 @@ namespace Landoria.UnityMediaRecorder
             _context = context;
             _camera = context.Camera;
             ValidatePreparedTarget(context.PreparedTarget, context.Width, context.Height);
-            if (context.FlipVertically)
+            bool needsResolve = context.AntiAliasingSamples > 1;
+            if (context.FlipVertically || needsResolve)
             {
-                _renderTarget = context.PreparedTarget ?? CreateTarget(context.Width, context.Height);
+                _renderTarget = context.PreparedTarget ?? CreateTarget(
+                    context.Width,
+                    context.Height,
+                    context.AntiAliasingSamples);
                 _ownsRenderTarget = context.PreparedTarget == null;
             }
 
-            _target = !context.FlipVertically && context.PreparedTarget != null
+            _target = !context.FlipVertically && !needsResolve && context.PreparedTarget != null
                 ? context.PreparedTarget
-                : CreateTarget(context.Width, context.Height);
-            _ownsTarget = context.PreparedTarget == null || context.FlipVertically;
+                : CreateTarget(context.Width, context.Height, 1);
+            _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve;
             _packetCallback = ReceivePacket;
             _renderEventFunction = D3D11NvencEncoderGetRenderEventFunction();
             _sessionId = D3D11NvencEncoderStart(
@@ -66,7 +93,7 @@ namespace Landoria.UnityMediaRecorder
             _previousEnabled = _camera.enabled;
             _camera.targetTexture = _renderTarget ?? _target;
             _active = true;
-            Camera.onPostRender += HandleCameraPostRender;
+            _captureCoroutine = StartCoroutine(CaptureFramesAtEndOfFrame());
             _camera.enabled = true;
         }
 
@@ -74,7 +101,11 @@ namespace Landoria.UnityMediaRecorder
         public override void StopCapture()
         {
             _active = false;
-            Camera.onPostRender -= HandleCameraPostRender;
+            if (_captureCoroutine != null)
+            {
+                StopCoroutine(_captureCoroutine);
+                _captureCoroutine = null;
+            }
             _camera.enabled = _previousEnabled;
             _camera.targetTexture = _previousTarget;
             _previousTarget = null;
@@ -109,7 +140,7 @@ namespace Landoria.UnityMediaRecorder
         }
 
         // Creates one sRGB render texture compatible with Unity camera output.
-        private static RenderTexture CreateTarget(int width, int height)
+        private static RenderTexture CreateTarget(int width, int height, int antiAliasingSamples)
         {
             var target = new RenderTexture(
                 width,
@@ -117,6 +148,7 @@ namespace Landoria.UnityMediaRecorder
                 0,
                 RenderTextureFormat.ARGB32,
                 RenderTextureReadWrite.sRGB);
+            target.antiAliasing = antiAliasingSamples;
             target.Create();
             return target;
         }
@@ -130,33 +162,59 @@ namespace Landoria.UnityMediaRecorder
             }
         }
 
-        // Submits this camera's completed Unity render to NVENC at the configured maximum rate.
-        private void HandleCameraPostRender(Camera renderedCamera)
+        // Waits until every camera and Canvas has completed before sampling the final target.
+        private IEnumerator CaptureFramesAtEndOfFrame()
         {
-            if (!_active || renderedCamera != _camera)
+            while (_active)
+            {
+                yield return new WaitForEndOfFrame();
+                CaptureCompletedFrame();
+            }
+        }
+
+        // Submits the fully composed Unity frame to NVENC at the configured maximum rate.
+        private void CaptureCompletedFrame()
+        {
+            if (!_active)
             {
                 return;
             }
 
             long timestamp = Stopwatch.GetTimestamp();
-            if (timestamp < _nextCaptureTimestamp)
+            if (_nextCaptureTimestamp != 0 && timestamp < _nextCaptureTimestamp)
             {
                 return;
             }
 
+            if (_nextCaptureTimestamp == 0)
+            {
+                _nextCaptureTimestamp = timestamp;
+            }
+
             if (_renderTarget != null)
             {
-                Graphics.Blit(
-                    _renderTarget,
-                    _target,
-                    new Vector2(1f, -1f),
-                    new Vector2(0f, 1f));
+                if (_context.FlipVertically)
+                {
+                    Graphics.Blit(
+                        _renderTarget,
+                        _target,
+                        new Vector2(1f, -1f),
+                        new Vector2(0f, 1f));
+                }
+                else
+                {
+                    Graphics.Blit(_renderTarget, _target);
+                }
             }
 
             long timestampMicroseconds = timestamp * 1_000_000L / Stopwatch.Frequency;
             D3D11NvencEncoderQueueTexture(_sessionId, _target.GetNativeTexturePtr(), timestampMicroseconds);
             GL.IssuePluginEvent(_renderEventFunction, _sessionId);
-            _nextCaptureTimestamp = timestamp + _captureIntervalTicks;
+            _nextCaptureTimestamp += _captureIntervalTicks;
+            if (_nextCaptureTimestamp < timestamp - _captureIntervalTicks)
+            {
+                _nextCaptureTimestamp = timestamp + _captureIntervalTicks;
+            }
         }
 
         // Copies a compressed native packet into the bounded FFmpeg queue.

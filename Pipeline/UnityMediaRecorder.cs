@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Landoria.FFmpegMediaWriter;
 using UnityEngine;
 
@@ -21,6 +22,7 @@ namespace Landoria.UnityMediaRecorder
         private bool _writerStarted;
 
         public event Action CaptureStarted;
+        public event Action CaptureStarting;
         public event Action FinalizationStarted;
         public event Action RecordingCompleted;
         public event Action<Exception> RecordingFailed;
@@ -28,6 +30,7 @@ namespace Landoria.UnityMediaRecorder
         public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes;
         public bool IsFinalizing => _writer?.IsFinalizing == true;
         public bool IsBusy => IsCapturing || IsFinalizing;
+        public string ActiveVideoBackendName => _videoBackend?.Name;
 
         // Creates capture resources and begins one asynchronous recording session.
         public void StartRecording(
@@ -119,6 +122,7 @@ namespace Landoria.UnityMediaRecorder
                     FfmpegPath = _settings.FfmpegPath,
                     TemporaryContainerPath = _settings.TemporaryContainerPath,
                     ArchivePath = _settings.ArchivePath,
+                    KeepIntermediateFile = _settings.KeepIntermediateFile,
                     OutputPath = _settings.OutputPath,
                     Width = _settings.Width,
                     Height = _settings.Height,
@@ -146,6 +150,8 @@ namespace Landoria.UnityMediaRecorder
             {
                 try
                 {
+                    SavePreviewImage();
+                    CaptureStarting?.Invoke();
                     StartVideoCapture();
                 }
                 catch (Exception exception)
@@ -170,12 +176,65 @@ namespace Landoria.UnityMediaRecorder
                 _settings.Width,
                 _settings.Height,
                 _settings.MaximumFrameRate,
+                _settings.AntiAliasingSamples,
                 _settings.FlipVertically,
                 _preparedVideoTarget,
                 _writer.WriteVideoFrame,
                 _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _videoCaptureStarted = true;
+        }
+
+        // Saves the prepared camera frame when preview-image generation is enabled for the session.
+        private void SavePreviewImage()
+        {
+            if (!_settings.GeneratePreviewImage)
+            {
+                return;
+            }
+
+            RenderTexture source = _preparedVideoTarget ?? _camera.targetTexture;
+            if (source == null)
+            {
+                throw new InvalidOperationException(
+                    "Preview-image generation requires a prepared video target or a camera target texture.");
+            }
+
+            RenderTexture readableSource = source;
+            RenderTexture resolvedSource = null;
+            if (source.antiAliasing > 1)
+            {
+                resolvedSource = new RenderTexture(
+                    source.width,
+                    source.height,
+                    0,
+                    RenderTextureFormat.ARGB32,
+                    RenderTextureReadWrite.sRGB);
+                resolvedSource.Create();
+                Graphics.Blit(source, resolvedSource);
+                readableSource = resolvedSource;
+            }
+
+            RenderTexture previous = RenderTexture.active;
+            var image = new Texture2D(readableSource.width, readableSource.height, TextureFormat.RGBA32, false, false);
+            try
+            {
+                RenderTexture.active = readableSource;
+                image.ReadPixels(new Rect(0f, 0f, readableSource.width, readableSource.height), 0, 0);
+                image.Apply(false, false);
+                File.WriteAllBytes(_settings.PreviewImagePath, image.EncodeToPNG());
+                MediaRecorderLog.WriteInfo($"Recording preview saved: {_settings.PreviewImagePath}");
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                Destroy(image);
+                if (resolvedSource != null)
+                {
+                    resolvedSource.Release();
+                    Destroy(resolvedSource);
+                }
+            }
         }
 
         // Stops Unity capture components while leaving writer shutdown to the caller.
@@ -216,7 +275,7 @@ namespace Landoria.UnityMediaRecorder
             }
         }
 
-        // Validates the completed MP4 and preserves the high-quality MKV archive.
+        // Validates the completed MP4 and applies the requested intermediate-file policy.
         private void CompleteFinalization()
         {
             try
@@ -259,8 +318,10 @@ namespace Landoria.UnityMediaRecorder
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (settings.Width < 2 || settings.Height < 2) throw new ArgumentOutOfRangeException(nameof(settings));
             if (settings.MaximumFrameRate < 1) throw new ArgumentOutOfRangeException(nameof(settings));
+            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8) throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
             if (string.IsNullOrWhiteSpace(settings.TemporaryContainerPath)) throw new ArgumentException("A temporary container path is required.", nameof(settings));
-            if (string.IsNullOrWhiteSpace(settings.ArchivePath)) throw new ArgumentException("An archive path is required.", nameof(settings));
+            if (settings.KeepIntermediateFile && string.IsNullOrWhiteSpace(settings.ArchivePath)) throw new ArgumentException("An archive path is required when keeping the intermediate file.", nameof(settings));
+            if (settings.GeneratePreviewImage && string.IsNullOrWhiteSpace(settings.PreviewImagePath)) throw new ArgumentException("A preview image path is required when generating a preview image.", nameof(settings));
             if (string.IsNullOrWhiteSpace(settings.OutputPath)) throw new ArgumentException("An output path is required.", nameof(settings));
         }
     }
