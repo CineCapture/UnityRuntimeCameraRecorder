@@ -1,0 +1,267 @@
+using System;
+using Landoria.FFmpegMediaWriter;
+using UnityEngine;
+
+namespace Landoria.UnityMediaRecorder
+{
+    // Coordinates Unity capture, native encoding, FFmpeg multiplexing and MP4 finalization.
+    public sealed class UnityMediaRecorder : MonoBehaviour
+    {
+        private IMediaWriter _writer;
+        private UnityAudioCapture _audio;
+        private VideoCaptureBackend _videoBackend;
+        private Camera _camera;
+        private AudioListener _listener;
+        private RecordingSettings _settings;
+        private RenderTexture _preparedVideoTarget;
+        private bool _waitingForAudio;
+        private bool _waitingForPipes;
+        private bool _videoCaptureStarted;
+        private VideoStreamFormat _videoStreamFormat;
+        private bool _writerStarted;
+
+        public event Action CaptureStarted;
+        public event Action FinalizationStarted;
+        public event Action RecordingCompleted;
+        public event Action<Exception> RecordingFailed;
+
+        public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes;
+        public bool IsFinalizing => _writer?.IsFinalizing == true;
+        public bool IsBusy => IsCapturing || IsFinalizing;
+
+        // Creates capture resources and begins one asynchronous recording session.
+        public void StartRecording(
+            Camera camera,
+            AudioListener listener,
+            RecordingSettings settings,
+            RenderTexture preparedVideoTarget = null)
+        {
+            if (IsBusy)
+            {
+                throw new InvalidOperationException("The media recorder is already busy.");
+            }
+
+            ValidateArguments(camera, listener, settings);
+            _camera = camera;
+            _listener = listener;
+            _settings = settings;
+            _preparedVideoTarget = preparedVideoTarget;
+            try
+            {
+                _videoBackend = VideoCaptureBackendRegistry.Create(gameObject);
+                _videoStreamFormat = _videoBackend.StreamFormat;
+                MediaRecorderLog.WriteInfo($"Selected video backend: {_videoBackend.Name}.");
+                _writer = new Landoria.FFmpegMediaWriter.FfmpegMediaWriter();
+                _audio = _listener.gameObject.AddComponent<UnityAudioCapture>();
+                _audio.Initialize(data => _writer?.WriteAudio(data) == true);
+                _waitingForAudio = true;
+            }
+            catch
+            {
+                ReleaseCaptureProducers();
+                ReleaseWriter();
+                throw;
+            }
+        }
+
+        // Stops active capture and starts creation of the final MP4 file.
+        public void StopRecording()
+        {
+            _waitingForAudio = false;
+            _waitingForPipes = false;
+            ReleaseCaptureProducers();
+            if (_writerStarted)
+            {
+                StartFinalization();
+            }
+            else
+            {
+                ReleaseWriter();
+            }
+        }
+
+        // Advances audio initialization, pipe connection and background finalization.
+        private void Update()
+        {
+            if (_waitingForAudio && _audio.IsReady)
+            {
+                StartFfmpeg();
+            }
+            else if (_waitingForPipes)
+            {
+                AdvancePipeStartup();
+            }
+
+            if (_writer?.IsFinalizationCompleted == true)
+            {
+                CompleteFinalization();
+            }
+        }
+
+        // Releases active processes and capture resources when the component is destroyed.
+        private void OnDestroy()
+        {
+            _waitingForAudio = false;
+            _waitingForPipes = false;
+            ReleaseCaptureProducers();
+            _writer?.Abort();
+            ReleaseWriter();
+        }
+
+        // Starts FFmpeg after Unity has reported the audio stream format.
+        private void StartFfmpeg()
+        {
+            _waitingForAudio = false;
+            try
+            {
+                _writer.Start(new MediaWriterSettings
+                {
+                    FfmpegPath = _settings.FfmpegPath,
+                    TemporaryContainerPath = _settings.TemporaryContainerPath,
+                    ArchivePath = _settings.ArchivePath,
+                    OutputPath = _settings.OutputPath,
+                    Width = _settings.Width,
+                    Height = _settings.Height,
+                    MaximumFrameRate = _settings.MaximumFrameRate,
+                    AudioSampleRate = _audio.SampleRate,
+                    AudioChannels = _audio.Channels,
+                    VideoStreamFormat = _videoStreamFormat,
+                    GraphicsDeviceVendor = SystemInfo.graphicsDeviceVendor,
+                    Warning = MediaRecorderLog.WriteWarning,
+                    Error = MediaRecorderLog.WriteError
+                });
+                _writerStarted = true;
+                _waitingForPipes = true;
+            }
+            catch (Exception exception)
+            {
+                Fail(exception);
+            }
+        }
+
+        // Starts video capture and reports readiness after both FFmpeg pipes connect.
+        private void AdvancePipeStartup()
+        {
+            if (_writer.IsVideoInputConnected && !_videoCaptureStarted)
+            {
+                try
+                {
+                    StartVideoCapture();
+                }
+                catch (Exception exception)
+                {
+                    Fail(exception);
+                    return;
+                }
+            }
+
+            if (_writer.AreInputsConnected)
+            {
+                _waitingForPipes = false;
+                CaptureStarted?.Invoke();
+            }
+        }
+
+        // Selects native NVENC capture or the portable managed fallback.
+        private void StartVideoCapture()
+        {
+            var context = new VideoCaptureContext(
+                _camera,
+                _settings.Width,
+                _settings.Height,
+                _settings.MaximumFrameRate,
+                _settings.FlipVertically,
+                _preparedVideoTarget,
+                _writer.WriteVideoFrame,
+                _writer.WriteVideoPacket);
+            _videoBackend.StartCapture(context);
+            _videoCaptureStarted = true;
+        }
+
+        // Stops Unity capture components while leaving writer shutdown to the caller.
+        private void ReleaseCaptureProducers()
+        {
+            if (_videoBackend != null)
+            {
+                if (_videoCaptureStarted)
+                {
+                    _videoBackend.StopCapture();
+                }
+
+                Destroy(_videoBackend);
+                _videoBackend = null;
+            }
+
+            _videoCaptureStarted = false;
+
+            if (_audio != null)
+            {
+                Destroy(_audio);
+                _audio = null;
+            }
+
+        }
+
+        // Starts background MP4 creation without re-encoding native H.265 video.
+        private void StartFinalization()
+        {
+            try
+            {
+                _writer.FinishCapture();
+                FinalizationStarted?.Invoke();
+            }
+            catch (Exception exception)
+            {
+                Fail(exception);
+            }
+        }
+
+        // Validates the completed MP4 and preserves the high-quality MKV archive.
+        private void CompleteFinalization()
+        {
+            try
+            {
+                _writer.CompleteFinalization();
+                ReleaseWriter();
+                RecordingCompleted?.Invoke();
+            }
+            catch (Exception exception)
+            {
+                Fail(exception);
+            }
+        }
+
+        // Reports a session failure after releasing active capture resources.
+        private void Fail(Exception exception)
+        {
+            _waitingForAudio = false;
+            _waitingForPipes = false;
+            ReleaseCaptureProducers();
+            _writer?.Abort();
+            ReleaseWriter();
+            MediaRecorderLog.WriteError(exception);
+            RecordingFailed?.Invoke(exception);
+        }
+
+        // Disposes the current format-neutral media writer.
+        private void ReleaseWriter()
+        {
+            _writer?.Dispose();
+            _writer = null;
+            _writerStarted = false;
+        }
+
+        // Rejects missing or invalid session arguments before resources are allocated.
+        private static void ValidateArguments(Camera camera, AudioListener listener, RecordingSettings settings)
+        {
+            if (camera == null) throw new ArgumentNullException(nameof(camera));
+            if (listener == null) throw new ArgumentNullException(nameof(listener));
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            if (settings.Width < 2 || settings.Height < 2) throw new ArgumentOutOfRangeException(nameof(settings));
+            if (settings.MaximumFrameRate < 1) throw new ArgumentOutOfRangeException(nameof(settings));
+            if (string.IsNullOrWhiteSpace(settings.TemporaryContainerPath)) throw new ArgumentException("A temporary container path is required.", nameof(settings));
+            if (string.IsNullOrWhiteSpace(settings.ArchivePath)) throw new ArgumentException("An archive path is required.", nameof(settings));
+            if (string.IsNullOrWhiteSpace(settings.OutputPath)) throw new ArgumentException("An output path is required.", nameof(settings));
+        }
+    }
+}

@@ -1,0 +1,70 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace Landoria.UnityMediaRecorder
+{
+    // Stores ordered video backend factories and selects the first supported implementation.
+    public static class VideoCaptureBackendRegistry
+    {
+        // Associates one backend factory with its selection priority.
+        private sealed class Registration
+        {
+            internal int Priority;
+            internal Func<GameObject, VideoCaptureBackend> Factory;
+        }
+
+        private static readonly List<Registration> Registrations = new List<Registration>();
+
+        // Registers the built-in NVENC and portable Unity backends.
+        static VideoCaptureBackendRegistry()
+        {
+            Register(CreateNativeBackend, 100);
+            Register(CreateManagedBackend, int.MinValue);
+        }
+
+        // Registers a backend factory, where returning null means unsupported on this system.
+        public static void Register(Func<GameObject, VideoCaptureBackend> factory, int priority = 0)
+        {
+            if (factory == null)
+            {
+                throw new ArgumentNullException(nameof(factory));
+            }
+
+            Registrations.Add(new Registration { Priority = priority, Factory = factory });
+            Registrations.Sort((left, right) => right.Priority.CompareTo(left.Priority));
+        }
+
+        // Creates the highest-priority backend supported by the current runtime.
+        internal static VideoCaptureBackend Create(GameObject host)
+        {
+            foreach (Registration registration in Registrations)
+            {
+                VideoCaptureBackend backend = registration.Factory(host);
+                if (backend != null)
+                {
+                    return backend;
+                }
+            }
+
+            throw new NotSupportedException("No video capture backend is available.");
+        }
+
+        // Creates the native NVENC backend only on its supported graphics stack.
+        private static VideoCaptureBackend CreateNativeBackend(GameObject host)
+        {
+            bool supported = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 &&
+                             SystemInfo.graphicsDeviceVendor.IndexOf(
+                                 "NVIDIA",
+                                 StringComparison.OrdinalIgnoreCase) >= 0;
+            return supported ? host.AddComponent<NativeVideoCapture>() : null;
+        }
+
+        // Creates the portable Unity readback backend used as the final fallback.
+        private static VideoCaptureBackend CreateManagedBackend(GameObject host)
+        {
+            return host.AddComponent<UnityVideoCapture>();
+        }
+    }
+}

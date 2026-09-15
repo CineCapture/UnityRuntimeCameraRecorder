@@ -1,0 +1,65 @@
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+          Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">AnyCPU</Platform>
+    <ProjectGuid>{8746502F-1F35-4EFA-AEA9-F4B494013F9E}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Landoria.UnityMediaRecorder</RootNamespace>
+    <AssemblyName>Landoria.UnityMediaRecorder</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <LangVersion>10</LangVersion>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Landoria.FFmpegMediaWriter\Landoria.FFmpegMediaWriter.csproj"><Project>{3E9A684C-8D8B-47A5-AFB5-97070210398E}</Project><Name>Landoria.FFmpegMediaWriter</Name></ProjectReference>
+    <None Include="..\Landoria.D3D11NvencEncoder\build\x64\Release\Landoria.D3D11NvencEncoder.dll"
+          Condition="Exists('..\Landoria.D3D11NvencEncoder\build\x64\Release\Landoria.D3D11NvencEncoder.dll')">
+      <Link>Landoria.D3D11NvencEncoder.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="UnityEngine">
+      <HintPath>$(UnityManagedPath)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(UnityManagedPath)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Capture\NativeVideoCapture.cs" />
+    <Compile Include="Capture\UnityAudioCapture.cs" />
+    <Compile Include="Capture\UnityVideoCapture.cs" />
+    <Compile Include="Capture\VideoCaptureBackend.cs" />
+    <Compile Include="Capture\VideoCaptureBackendRegistry.cs" />
+    <Compile Include="Capture\VideoCaptureContext.cs" />
+    <Compile Include="Pipeline\MediaRecorderLog.cs" />
+    <Compile Include="Pipeline\RecordingSettings.cs" />
+    <Compile Include="Pipeline\UnityMediaRecorder.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
