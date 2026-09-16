@@ -48,14 +48,16 @@ namespace UnityMediaRecorder
             }
 
             throw new NotSupportedException(
-                "No compatible video encoder is available. The built-in encoder requires Direct3D 11, " +
+                "No compatible video encoder is available. The built-in encoder requires Windows, Direct3D 11, " +
                 "an NVIDIA GPU and Direct3DVideoEncoder.dll. PNG capture remains available.");
         }
 
         // Creates the native NVENC backend only on its supported graphics stack.
         private static VideoCaptureBackend CreateNativeBackend(GameObject host)
         {
-            bool supported = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 &&
+            bool supported = (Application.platform == RuntimePlatform.WindowsPlayer ||
+                              Application.platform == RuntimePlatform.WindowsEditor) &&
+                             SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11 &&
                              SystemInfo.graphicsDeviceVendor.IndexOf(
                                  "NVIDIA",
                                  StringComparison.OrdinalIgnoreCase) >= 0 &&

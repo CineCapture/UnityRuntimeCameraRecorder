@@ -4,11 +4,13 @@ Record a Unity camera, or the application's displayed view, with audio. Each rec
 
 ## Requirements
 
+The DLL targets .NET Standard 2.1 for compatible Unity runtimes on Windows, Linux and macOS. Unity 6's referenced assemblies require 2.1. PNG capture uses Unity's GPU readback APIs and requires a graphics device supporting asynchronous readback. Linux/macOS execution has not yet been tested.
+
 For the current video backend: Windows x64, Unity running Direct3D 11, an NVIDIA GPU with NVENC and a recent driver. Include `UnityMediaRecorder.dll`, [Direct3DVideoEncoder.dll](https://github.com/end3rbyte/Direct3DVideoEncoder) and [FFmpegMediaWriter.dll](https://github.com/end3rbyte/FFmpegMediaWriter).
 
 Install FFmpeg separately and supply its executable path in `RecordingSettings.FfmpegPath`.
 
-On Windows, follow the [FFmpeg download and extraction instructions](https://github.com/end3rbyte/FFmpegMediaWriter#download-and-setup) and supply the resulting `bin\ffmpeg.exe` path in `RecordingSettings.FfmpegPath`.
+Follow the [FFmpeg download and setup instructions](https://github.com/end3rbyte/FFmpegMediaWriter#download-and-setup) and supply the executable path in `RecordingSettings.FfmpegPath`.
 
 ## Video example
 
@@ -73,8 +75,8 @@ recorder.StopPngSequence();
 
 ## Build and extension
 
-Build `UnityMediaRecorder.csproj` targeting .NET Framework 4.8 with the .NET 10 SDK: `dotnet msbuild UnityMediaRecorder.csproj /restore /p:Configuration=Release /p:UnityManagedPath="YOUR_UNITY_MANAGED_DIRECTORY"`. Set `UnityManagedPath` to Unity's managed UnityEngine assembly directory. Keep the three library repositories side by side for the project reference and native DLL copy. Although FFmpegMediaWriter is cross-platform, the current Direct3D/NVENC capture backend remains Windows-only.
+Build with the .NET 10 SDK: `dotnet build UnityMediaRecorder.csproj -c Release -p:UnityManagedPath="YOUR_UNITY_MANAGED_DIRECTORY"`. Set `UnityManagedPath` to Unity's managed UnityEngine assembly directory. Output: `bin/Release/netstandard2.1/UnityMediaRecorder.dll`. Keep the three library repositories side by side for the project reference and native DLL copy. The current Direct3D/NVENC video backend remains Windows-only; Linux/macOS video recording requires a separately registered compatible backend.
 
 To add a video engine, implement `VideoCaptureBackend`, validate codec selection in `ConfigureStreamFormat` and register a factory with `VideoCaptureBackendRegistry.Register`. Write packets through `VideoCaptureContext.WritePacket`, not directly to FFmpeg. No software encoding fallback is included.
 
-See [UnitySample](https://github.com/end3rbyte/UnitySample) for an editable scene and [PERFORMANCE.md](PERFORMANCE.md) for measurements. Our code uses the [MIT license](LICENSE); third-party licenses and codec patent rights are separate.
+See [UnitySample](https://github.com/end3rbyte/UnitySample) for an editable scene. Our code uses the [MIT license](LICENSE); third-party licenses and codec patent rights are separate.
