@@ -1,4 +1,4 @@
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Describes one recording session without depending on a game or configuration framework.
     public sealed class RecordingSettings

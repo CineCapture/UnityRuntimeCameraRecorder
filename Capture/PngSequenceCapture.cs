@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Captures a Unity camera as a numbered PNG image sequence without blocking the render loop.
     internal sealed class PngSequenceCapture : MonoBehaviour

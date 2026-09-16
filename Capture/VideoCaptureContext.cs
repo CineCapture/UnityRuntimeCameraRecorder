@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Provides a video backend with session inputs and format-neutral output callbacks.
     public sealed class VideoCaptureContext

@@ -1,7 +1,7 @@
 using UnityEngine;
 using FFmpegMediaWriter;
 
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Defines the replaceable video capture and encoding boundary used by the recorder.
     public abstract class VideoCaptureBackend : MonoBehaviour

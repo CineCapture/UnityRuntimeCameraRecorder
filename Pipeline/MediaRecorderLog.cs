@@ -1,6 +1,6 @@
 using System;
 
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Provides optional logging callbacks without coupling the library to a logging framework.
     public static class MediaRecorderLog

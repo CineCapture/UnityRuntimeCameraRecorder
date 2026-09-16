@@ -1,4 +1,4 @@
-# Landoria.UnityMediaRecorder
+# UnityMediaRecorder
 
 See [PERFORMANCE.md](PERFORMANCE.md) for the measured bottlenecks, rejected experiments and optimization roadmap.
 
@@ -64,11 +64,11 @@ The source files are grouped by domain: `Capture` contains Unity capture and vid
 
 ## Example
 
-The [Unity/BepInEx integration example](Example/README.md) builds a lit cube scene entirely from code, moves a camera around it and records the result as a five-second video.
+The standalone [UnitySample](https://github.com/landoria-gaming/UnitySample) repository builds a lit cube scene entirely from code, with moving and fixed cameras. It demonstrates PNG sequences and native video recording. It is not included in the library repository.
 
 ## Build
 
-Build `Landoria.UnityMediaRecorder.csproj` with .NET Framework 4.8. Set the `UnityManagedPath` MSBuild property to the directory containing the Unity managed assemblies.
+Build `UnityMediaRecorder.csproj` with .NET Framework 4.8. Set the `UnityManagedPath` MSBuild property to the directory containing the Unity managed assemblies.
 
 ## Runtime requirements
 

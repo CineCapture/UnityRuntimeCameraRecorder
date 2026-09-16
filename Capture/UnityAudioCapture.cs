@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Captures Unity's active audio mix and forwards raw samples to FFmpeg.
     internal sealed class UnityAudioCapture : MonoBehaviour

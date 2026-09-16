@@ -1,4 +1,4 @@
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Describes a numbered PNG image-sequence capture session.
     public sealed class PngSequenceSettings

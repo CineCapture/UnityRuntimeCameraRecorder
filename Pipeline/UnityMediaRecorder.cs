@@ -3,7 +3,7 @@ using System.IO;
 using FFmpegMediaWriter;
 using UnityEngine;
 
-namespace Landoria.UnityMediaRecorder
+namespace UnityMediaRecorder
 {
     // Coordinates Unity capture, native encoding, FFmpeg multiplexing and MP4 finalization.
     public sealed class UnityMediaRecorder : MonoBehaviour
