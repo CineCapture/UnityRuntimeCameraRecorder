@@ -1,0 +1,116 @@
+name: Snapshot build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snapshot-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: .NET Standard 2.1 / AnyCPU
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      UNITY_VERSION: 6000.0.61f1
+      MEDIA_WRITER_REVISION: 405024406bbfbcf85963bff9722ec70faf433b76
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: UnityMediaRecorder
+
+    steps:
+      - name: Check out recorder source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: UnityMediaRecorder
+          persist-credentials: false
+
+      - name: Check out media writer dependency
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: end3rbyte/FFmpegMediaWriter
+          ref: ${{ env.MEDIA_WRITER_REVISION }}
+          path: FFmpegMediaWriter
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # Install the editor only to reference its managed assemblies; do not launch it.
+      - name: Set up Unity compilation references
+        id: unity
+        uses: buildalon/unity-setup@30fcbcb56c10ea5d64298e970d952b8d29bc268b # v2
+        with:
+          version-file: None
+          unity-version: ${{ env.UNITY_VERSION }}
+          cache-installation: true
+
+      - name: Build managed DLLs
+        env:
+          UNITY_EXECUTABLE: ${{ steps.unity.outputs.unity-editor-path }}
+        run: |
+          $editorDirectory = Split-Path -Parent $env:UNITY_EXECUTABLE
+          $managed = Join-Path $editorDirectory 'Data/Managed/UnityEngine'
+          if (-not (Test-Path -LiteralPath (Join-Path $managed 'UnityEngine.CoreModule.dll'))) {
+            throw "Unity compilation references were not found in $managed."
+          }
+          New-Item -ItemType Directory -Path obj -Force | Out-Null
+          dotnet build UnityMediaRecorder.csproj -c Release "-p:UnityManagedPath=$managed" -v minimal /fl '/flp:logfile=obj/snapshot-build.log;verbosity=normal'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Build failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Package snapshot
+        run: |
+          $snapshot = 'bin/snapshot'
+          New-Item -ItemType Directory -Path $snapshot -Force | Out-Null
+          Copy-Item -LiteralPath 'bin/Release/netstandard2.1/UnityMediaRecorder.dll', 'bin/Release/netstandard2.1/FFmpegMediaWriter.dll', 'LICENSE', 'README.md' -Destination $snapshot
+          Copy-Item -LiteralPath '../FFmpegMediaWriter/LICENSE' -Destination "$snapshot/FFmpegMediaWriter.LICENSE"
+          $hashes = [ordered]@{}
+          foreach ($name in 'UnityMediaRecorder.dll', 'FFmpegMediaWriter.dll') {
+            $dll = Get-Item -LiteralPath "$snapshot/$name"
+            if ($dll.Length -eq 0) {
+              throw "The compiled $name is empty."
+            }
+            $hashes[$name] = (Get-FileHash -LiteralPath $dll.FullName -Algorithm SHA256).Hash
+          }
+          [ordered]@{
+            kind = 'snapshot'
+            commit = (git rev-parse HEAD)
+            mediaWriterCommit = (git -C ../FFmpegMediaWriter rev-parse HEAD)
+            unityVersion = $env:UNITY_VERSION
+            run = $env:GITHUB_RUN_ID
+            attempt = $env:GITHUB_RUN_ATTEMPT
+            builtUtc = [DateTime]::UtcNow.ToString('O')
+            framework = '.NET Standard 2.1'
+            platform = 'AnyCPU'
+            configuration = 'Release'
+            dllSha256 = $hashes
+          } | ConvertTo-Json | Set-Content -LiteralPath "$snapshot/build-info.json" -Encoding utf8
+
+      - name: Upload snapshot
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: UnityMediaRecorder-snapshot-netstandard2.1-anycpu-${{ github.sha }}-${{ github.run_attempt }}
+          path: UnityMediaRecorder/bin/snapshot/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: UnityMediaRecorder-build-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: UnityMediaRecorder/obj/snapshot-build.log
+          if-no-files-found: ignore
+          retention-days: 30
