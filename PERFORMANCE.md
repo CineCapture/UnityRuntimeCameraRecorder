@@ -4,6 +4,8 @@ The target workload records two independent 3840 x 2160 cameras at 60 FPS, with 
 
 Latest result: asynchronous HEVC Main/P5 sustained approximately 60 encoded FPS per camera in 10- and 30-second visible tests, without capture drops. H.264 remains the default and its dual-P5 throughput remains ~43 FPS per camera. Details, experimental activation and remaining quality/compatibility/frame-pacing checks appear below.
 
+Current integration: the reusable recorder defaults to H.264, but UnitySample now defaults to HEVC/P5 and exposes H.264/HEVC in its Video codec dropdown (`--codec h264|hevc`). NVENC asynchronous completion is now the default; `DIRECT3D_NVENC_ASYNC=0` is a diagnostic override. Codec selection is an explicit per-session setting, no longer an environment requirement. Earlier experiment descriptions below preserve the configurations used at the time, not current startup defaults.
+
 ## Measured result
 
 Two simultaneous P5 sessions rendered at approximately 41 FPS on the test system. Selecting the backend-neutral `Balanced` quality setting, which maps to NVENC P4, increased the same workload to approximately 56.6 rendered FPS while retaining the 67.2 Mbit/s target, 30-frame GOP, High profile and BT.709 metadata. A single recording continues to use `Highest`/P5 by default.

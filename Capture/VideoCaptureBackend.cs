@@ -10,6 +10,15 @@ namespace UnityMediaRecorder
         public abstract VideoStreamFormat StreamFormat { get; }
         public virtual string DiagnosticsJson => null;
 
+        // Validates the requested codec before the writer is configured.
+        public virtual void ConfigureStreamFormat(VideoStreamFormat format)
+        {
+            if (format != StreamFormat)
+            {
+                throw new System.NotSupportedException("This video backend does not support the requested codec.");
+            }
+        }
+
         // Starts producing video data for one recording session.
         public abstract void StartCapture(VideoCaptureContext context);
 

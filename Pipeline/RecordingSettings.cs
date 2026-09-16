@@ -1,3 +1,5 @@
+using FFmpegMediaWriter;
+
 namespace UnityMediaRecorder
 {
     // Describes one recording session without depending on a game or configuration framework.
@@ -16,6 +18,7 @@ namespace UnityMediaRecorder
         public int AntiAliasingSamples { get; set; } = 1;
         public VideoEncodingQuality EncodingQuality { get; set; } = VideoEncodingQuality.Highest;
         public int NativeEncodingPreset { get; set; } // Zero retains the quality-based default; NVENC accepts 1–7.
+        public VideoStreamFormat VideoStreamFormat { get; set; } = VideoStreamFormat.H264;
         public bool FlipVertically { get; set; }
         public bool CaptureScreen { get; set; }
     }

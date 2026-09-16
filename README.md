@@ -22,6 +22,8 @@ Set `AntiAliasingSamples` to `1`, `2`, `4` or `8`. Multisampled camera output is
 
 The main public API is `UnityMediaRecorder`, `RecordingSettings` and `MediaRecorderLog`. Pipes and FFmpeg processes remain internal.
 
+Select `RecordingSettings.VideoStreamFormat` explicitly (`FFmpegMediaWriter.VideoStreamFormat.H264`, the library default, or `.Hevc`). The backend validates the requested codec before writer setup and passes the same codec to the native session; no codec environment variable is needed. NVENC completion is asynchronous by default on supported Windows drivers. Set `DIRECT3D_NVENC_ASYNC=0` before launching only to diagnose the synchronous path. Codec selection cannot change during a recording.
+
 ## PNG image sequences
 
 Use `StartPngSequence` when individual lossless frames are needed instead of a video. The capture frequency can be lower or higher than one image per second and follows a wall-clock schedule, capped by the rate at which Unity renders frames. Stop the sequence with `StopPngSequence`.

@@ -32,8 +32,22 @@ namespace UnityMediaRecorder
         private string _diagnosticsJson;
         public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
-        public override VideoStreamFormat StreamFormat => Environment.GetEnvironmentVariable("DIRECT3D_NVENC_HEVC") == "1"
-            ? VideoStreamFormat.Hevc : VideoStreamFormat.H264;
+        private VideoStreamFormat _streamFormat = VideoStreamFormat.H264;
+        public override VideoStreamFormat StreamFormat => _streamFormat;
+
+        // Selects an immutable session codec before configuring the native encoder and writer.
+        public override void ConfigureStreamFormat(VideoStreamFormat format)
+        {
+            if (_sessionId != 0)
+            {
+                throw new InvalidOperationException("The video codec cannot change during capture.");
+            }
+            if (format != VideoStreamFormat.H264 && format != VideoStreamFormat.Hevc)
+            {
+                throw new NotSupportedException("The native backend supports only H.264 and HEVC.");
+            }
+            _streamFormat = format;
+        }
 
         // Returns whether the native DLL and its render callback can be loaded.
         internal static bool IsAvailable()
@@ -74,7 +88,7 @@ namespace UnityMediaRecorder
             _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve || needsResize;
             _packetCallback = ReceivePacket;
             _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
-            _sessionId = Direct3DVideoEncoderStart(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, context.NativeEncodingPreset == 0 ? (context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5) : context.NativeEncodingPreset, _packetCallback);
+            _sessionId = Direct3DVideoEncoderStartWithCodec(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, context.NativeEncodingPreset == 0 ? (context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5) : context.NativeEncodingPreset, (int)_streamFormat, _packetCallback);
             if (_sessionId == 0)
             {
                 throw new InvalidOperationException(GetNativeError(0));
@@ -253,7 +267,7 @@ namespace UnityMediaRecorder
 
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Initializes the native encoder for a Unity texture.
-        private static extern int Direct3DVideoEncoderStart(IntPtr texture, int width, int height, int frameRate, int preset, PacketCallback callback);
+        private static extern int Direct3DVideoEncoderStartWithCodec(IntPtr texture, int width, int height, int frameRate, int preset, int codec, PacketCallback callback);
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Queues a texture for processing by the Unity render thread callback.
         private static extern void Direct3DVideoEncoderQueueTexture(int sessionId, IntPtr texture, long timestampMicroseconds);

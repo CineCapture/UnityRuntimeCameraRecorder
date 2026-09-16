@@ -52,6 +52,7 @@ namespace UnityMediaRecorder
             try
             {
                 _videoBackend = VideoCaptureBackendRegistry.Create(gameObject);
+                _videoBackend.ConfigureStreamFormat(settings.VideoStreamFormat);
                 _videoStreamFormat = _videoBackend.StreamFormat;
                 MediaRecorderLog.WriteInfo($"Selected video backend: {_videoBackend.Name}.");
                 _writer = new FFmpegMediaWriter.FfmpegMediaWriter();
