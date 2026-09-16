@@ -1,5 +1,5 @@
 using UnityEngine;
-using Landoria.FFmpegMediaWriter;
+using FFmpegMediaWriter;
 
 namespace Landoria.UnityMediaRecorder
 {

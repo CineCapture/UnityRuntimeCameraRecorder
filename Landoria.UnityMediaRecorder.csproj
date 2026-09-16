@@ -28,10 +28,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Landoria.FFmpegMediaWriter\Landoria.FFmpegMediaWriter.csproj"><Project>{3E9A684C-8D8B-47A5-AFB5-97070210398E}</Project><Name>Landoria.FFmpegMediaWriter</Name></ProjectReference>
-    <None Include="..\Landoria.D3D11NvencEncoder\build\x64\Release\Landoria.D3D11NvencEncoder.dll"
-          Condition="Exists('..\Landoria.D3D11NvencEncoder\build\x64\Release\Landoria.D3D11NvencEncoder.dll')">
-      <Link>Landoria.D3D11NvencEncoder.dll</Link>
+    <ProjectReference Include="..\FFmpegMediaWriter\FFmpegMediaWriter.csproj"><Project>{3E9A684C-8D8B-47A5-AFB5-97070210398E}</Project><Name>FFmpegMediaWriter</Name></ProjectReference>
+    <None Include="..\Direct3DVideoEncoder\build\x64\Release\Direct3DVideoEncoder.dll"
+          Condition="Exists('..\Direct3DVideoEncoder\build\x64\Release\Direct3DVideoEncoder.dll')">
+      <Link>Direct3DVideoEncoder.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <Reference Include="System" />
@@ -58,7 +58,6 @@
     <Compile Include="Capture\NativeVideoCapture.cs" />
     <Compile Include="Capture\PngSequenceCapture.cs" />
     <Compile Include="Capture\UnityAudioCapture.cs" />
-    <Compile Include="Capture\UnityVideoCapture.cs" />
     <Compile Include="Capture\VideoCaptureBackend.cs" />
     <Compile Include="Capture\VideoCaptureBackendRegistry.cs" />
     <Compile Include="Capture\VideoCaptureContext.cs" />

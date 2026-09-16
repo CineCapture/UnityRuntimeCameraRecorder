@@ -3,7 +3,7 @@ using System.Collections;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using UnityEngine;
-using Landoria.FFmpegMediaWriter;
+using FFmpegMediaWriter;
 
 namespace Landoria.UnityMediaRecorder
 {
@@ -38,7 +38,7 @@ namespace Landoria.UnityMediaRecorder
         {
             try
             {
-                return D3D11NvencEncoderGetRenderEventFunction() != IntPtr.Zero;
+                return Direct3DVideoEncoderGetRenderEventFunction() != IntPtr.Zero;
             }
             catch (DllNotFoundException)
             {
@@ -75,8 +75,8 @@ namespace Landoria.UnityMediaRecorder
                 : CreateTarget(context.Width, context.Height, 1);
             _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve;
             _packetCallback = ReceivePacket;
-            _renderEventFunction = D3D11NvencEncoderGetRenderEventFunction();
-            _sessionId = D3D11NvencEncoderStart(
+            _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
+            _sessionId = Direct3DVideoEncoderStart(
                     _target.GetNativeTexturePtr(),
                     context.Width,
                     context.Height,
@@ -111,12 +111,12 @@ namespace Landoria.UnityMediaRecorder
             _camera.targetTexture = _previousTarget;
             _previousTarget = null;
 
-            D3D11NvencEncoderStop(_sessionId);
+            Direct3DVideoEncoderStop(_sessionId);
             MediaRecorderLog.WriteInfo(
-                $"Native capture frames: queued={D3D11NvencEncoderGetQueuedFrameCount(_sessionId)}, " +
-                $"encoded={D3D11NvencEncoderGetEncodedFrameCount(_sessionId)}, " +
-                $"dropped={D3D11NvencEncoderGetDroppedFrameCount(_sessionId)}.");
-            D3D11NvencEncoderDestroy(_sessionId);
+                $"Native capture frames: queued={Direct3DVideoEncoderGetQueuedFrameCount(_sessionId)}, " +
+                $"encoded={Direct3DVideoEncoderGetEncodedFrameCount(_sessionId)}, " +
+                $"dropped={Direct3DVideoEncoderGetDroppedFrameCount(_sessionId)}.");
+            Direct3DVideoEncoderDestroy(_sessionId);
             _sessionId = 0;
             if (_rejectedPackets > 0)
             {
@@ -209,7 +209,7 @@ namespace Landoria.UnityMediaRecorder
             }
 
             long timestampMicroseconds = timestamp * 1_000_000L / Stopwatch.Frequency;
-            D3D11NvencEncoderQueueTexture(_sessionId, _target.GetNativeTexturePtr(), timestampMicroseconds);
+            Direct3DVideoEncoderQueueTexture(_sessionId, _target.GetNativeTexturePtr(), timestampMicroseconds);
             GL.IssuePluginEvent(_renderEventFunction, _sessionId);
             _nextCaptureTimestamp += _captureIntervalTicks;
             if (_nextCaptureTimestamp < timestamp - _captureIntervalTicks)
@@ -232,13 +232,13 @@ namespace Landoria.UnityMediaRecorder
         // Reads the last detailed error exposed by the native encoder.
         private static string GetNativeError(int sessionId)
         {
-            IntPtr pointer = D3D11NvencEncoderGetLastError(sessionId);
+            IntPtr pointer = Direct3DVideoEncoderGetLastError(sessionId);
             return Marshal.PtrToStringAnsi(pointer) ?? "Unknown native NVENC error.";
         }
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Initializes the native encoder for a Unity texture.
-        private static extern int D3D11NvencEncoderStart(
+        private static extern int Direct3DVideoEncoderStart(
             IntPtr texture,
             int width,
             int height,
@@ -246,40 +246,40 @@ namespace Landoria.UnityMediaRecorder
             int preset,
             PacketCallback callback);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Queues a texture for processing by the Unity render thread callback.
-        private static extern void D3D11NvencEncoderQueueTexture(
+        private static extern void Direct3DVideoEncoderQueueTexture(
             int sessionId,
             IntPtr texture,
             long timestampMicroseconds);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the native Unity render event callback.
-        private static extern IntPtr D3D11NvencEncoderGetRenderEventFunction();
+        private static extern IntPtr Direct3DVideoEncoderGetRenderEventFunction();
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Stops and flushes the native encoder.
-        private static extern void D3D11NvencEncoderStop(int sessionId);
+        private static extern void Direct3DVideoEncoderStop(int sessionId);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Removes a stopped native encoder session.
-        private static extern void D3D11NvencEncoderDestroy(int sessionId);
+        private static extern void Direct3DVideoEncoderDestroy(int sessionId);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the last native encoder error.
-        private static extern IntPtr D3D11NvencEncoderGetLastError(int sessionId);
+        private static extern IntPtr Direct3DVideoEncoderGetLastError(int sessionId);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames accepted into the native surface pool.
-        private static extern ulong D3D11NvencEncoderGetQueuedFrameCount(int sessionId);
+        private static extern ulong Direct3DVideoEncoderGetQueuedFrameCount(int sessionId);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames successfully encoded by NVENC.
-        private static extern ulong D3D11NvencEncoderGetEncodedFrameCount(int sessionId);
+        private static extern ulong Direct3DVideoEncoderGetEncodedFrameCount(int sessionId);
 
-        [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames skipped by the native surface pool.
-        private static extern ulong D3D11NvencEncoderGetDroppedFrameCount(int sessionId);
+        private static extern ulong Direct3DVideoEncoderGetDroppedFrameCount(int sessionId);
 
     }
 }

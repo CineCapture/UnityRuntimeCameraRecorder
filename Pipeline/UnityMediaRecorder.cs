@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Landoria.FFmpegMediaWriter;
+using FFmpegMediaWriter;
 using UnityEngine;
 
 namespace Landoria.UnityMediaRecorder
@@ -57,7 +57,7 @@ namespace Landoria.UnityMediaRecorder
                 _videoBackend = VideoCaptureBackendRegistry.Create(gameObject);
                 _videoStreamFormat = _videoBackend.StreamFormat;
                 MediaRecorderLog.WriteInfo($"Selected video backend: {_videoBackend.Name}.");
-                _writer = new Landoria.FFmpegMediaWriter.FfmpegMediaWriter();
+                _writer = new FFmpegMediaWriter.FfmpegMediaWriter();
                 _audio = _listener.gameObject.AddComponent<UnityAudioCapture>();
                 _audio.Initialize(data => _writer?.WriteAudio(data) == true);
                 _waitingForAudio = true;
@@ -181,13 +181,10 @@ namespace Landoria.UnityMediaRecorder
                     ArchivePath = _settings.ArchivePath,
                     KeepIntermediateFile = _settings.KeepIntermediateFile,
                     OutputPath = _settings.OutputPath,
-                    Width = _settings.Width,
-                    Height = _settings.Height,
                     MaximumFrameRate = _settings.MaximumFrameRate,
                     AudioSampleRate = _audio.SampleRate,
                     AudioChannels = _audio.Channels,
                     VideoStreamFormat = _videoStreamFormat,
-                    GraphicsDeviceVendor = SystemInfo.graphicsDeviceVendor,
                     Warning = MediaRecorderLog.WriteWarning,
                     Error = MediaRecorderLog.WriteError
                 });
@@ -225,7 +222,7 @@ namespace Landoria.UnityMediaRecorder
             }
         }
 
-        // Selects native NVENC capture or the portable managed fallback.
+        // Starts the selected backend that produces encoded video packets.
         private void StartVideoCapture()
         {
             var context = new VideoCaptureContext(
@@ -237,7 +234,6 @@ namespace Landoria.UnityMediaRecorder
                 _settings.EncodingQuality,
                 _settings.FlipVertically,
                 _preparedVideoTarget,
-                _writer.WriteVideoFrame,
                 _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _videoCaptureStarted = true;

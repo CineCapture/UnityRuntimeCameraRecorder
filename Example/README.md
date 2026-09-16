@@ -8,7 +8,7 @@ Each camera produces one PNG per second. The numbered sequences are stored in se
 
 1. Create an empty 3D Unity project compatible with the Unity assemblies used to build `Landoria.UnityMediaRecorder`.
 2. Ensure Unity's built-in Particle System module is enabled in Package Manager.
-3. Copy `Landoria.UnityMediaRecorder.dll` and `Landoria.FFmpegMediaWriter.dll` into `Assets/Plugins`.
+3. Copy `Landoria.UnityMediaRecorder.dll` and `FFmpegMediaWriter.dll` into `Assets/Plugins`.
 4. Copy the complete `Example` folder into `Assets`.
 5. Open an empty scene and enter Play mode.
 

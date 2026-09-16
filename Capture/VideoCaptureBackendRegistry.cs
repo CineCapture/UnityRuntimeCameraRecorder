@@ -17,11 +17,10 @@ namespace Landoria.UnityMediaRecorder
 
         private static readonly List<Registration> Registrations = new List<Registration>();
 
-        // Registers the built-in NVENC and portable Unity backends.
+        // Registers the built-in native encoding backend.
         static VideoCaptureBackendRegistry()
         {
             Register(CreateNativeBackend, 100);
-            Register(CreateManagedBackend, int.MinValue);
         }
 
         // Registers a backend factory, where returning null means unsupported on this system.
@@ -48,7 +47,9 @@ namespace Landoria.UnityMediaRecorder
                 }
             }
 
-            throw new NotSupportedException("No video capture backend is available.");
+            throw new NotSupportedException(
+                "No compatible video encoder is available. The built-in encoder requires Direct3D 11, " +
+                "an NVIDIA GPU and Direct3DVideoEncoder.dll. PNG capture remains available.");
         }
 
         // Creates the native NVENC backend only on its supported graphics stack.
@@ -62,10 +63,5 @@ namespace Landoria.UnityMediaRecorder
             return supported ? host.AddComponent<NativeVideoCapture>() : null;
         }
 
-        // Creates the portable Unity readback backend used as the final fallback.
-        private static VideoCaptureBackend CreateManagedBackend(GameObject host)
-        {
-            return host.AddComponent<UnityVideoCapture>();
-        }
     }
 }

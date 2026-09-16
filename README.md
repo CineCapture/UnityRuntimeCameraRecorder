@@ -4,7 +4,7 @@ See [PERFORMANCE.md](PERFORMANCE.md) for the measured bottlenecks, rejected expe
 
 Reusable capture and recording orchestration for Unity applications.
 
-The library captures video from Unity's normal camera render loop and captures the Unity audio mix. It delegates media transport, FFmpeg execution and output finalization to `Landoria.FFmpegMediaWriter`. On Direct3D 11 and NVIDIA systems, it can use `Landoria.D3D11NvencEncoder.dll` for native H.264 encoding.
+The library captures video from Unity's normal camera render loop and captures the Unity audio mix. It delegates media transport, FFmpeg execution and output finalization to `FFmpegMediaWriter`. On Direct3D 11 and NVIDIA systems, it can use `Direct3DVideoEncoder.dll` for native H.264 encoding.
 
 It does not depend on Valheim or BepInEx. The calling application owns user input, camera behavior, configuration, interface and output naming.
 
@@ -44,7 +44,7 @@ Files are named `frame_000000.png`, `frame_000001.png`, and so on. GPU readback 
 
 ## Video backends
 
-Video capture and encoding are replaceable through `VideoCaptureBackend`. A backend declares whether it sends raw RGBA, H.264 or HEVC data, receives an immutable `VideoCaptureContext`, and writes frames or timestamped encoded packets through that context. It never accesses the recorder's pipes or FFmpeg process directly.
+Video capture and encoding are replaceable through `VideoCaptureBackend`. A backend declares whether it sends H.264 or HEVC data, receives an immutable `VideoCaptureContext`, and writes timestamped encoded packets through that context. It never accesses the recorder's pipes or FFmpeg process directly.
 
 Register a factory before starting a recording:
 
@@ -56,7 +56,7 @@ VideoCaptureBackendRegistry.Register(
     priority: 200);
 ```
 
-The factory returns `null` when its engine is unavailable. Higher priorities are selected first. The built-in D3D11/NVENC backend has priority `100`; the Unity GPU-readback fallback has the lowest possible priority. A custom backend therefore needs no change in `UnityMediaRecorder`.
+The factory returns `null` when its engine is unavailable. Higher priorities are selected first. The built-in D3D11/NVENC backend has priority `100`. There is no built-in video encoding fallback: recording reports an explicit error if no compatible backend is available. PNG capture remains independent. A custom backend needs no change in `UnityMediaRecorder`.
 
 The optional prepared `RenderTexture` passed to `StartRecording` remains owned by the caller. The selected backend may use it during capture but must not release or destroy it.
 
@@ -73,8 +73,8 @@ Build `Landoria.UnityMediaRecorder.csproj` with .NET Framework 4.8. Set the `Uni
 ## Runtime requirements
 
 - Unity with the required managed modules
-- `Landoria.FFmpegMediaWriter.dll`
+- `FFmpegMediaWriter.dll`
 - FFmpeg installed separately for multiplexing and audio encoding
-- `Landoria.D3D11NvencEncoder.dll` for the optional native NVIDIA path
+- `Direct3DVideoEncoder.dll` for the optional native NVIDIA path
 
 Released under the [MIT License](LICENSE).
