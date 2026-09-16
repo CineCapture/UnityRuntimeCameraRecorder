@@ -16,6 +16,7 @@ namespace UnityMediaRecorder
             int maximumFrameRate,
             int antiAliasingSamples,
             VideoEncodingQuality encodingQuality,
+            int nativeEncodingPreset,
             bool flipVertically,
             bool captureScreen,
             RenderTexture preparedTarget,
@@ -27,6 +28,7 @@ namespace UnityMediaRecorder
             MaximumFrameRate = maximumFrameRate;
             AntiAliasingSamples = antiAliasingSamples;
             EncodingQuality = encodingQuality;
+            NativeEncodingPreset = nativeEncodingPreset;
             FlipVertically = flipVertically;
             CaptureScreen = captureScreen;
             PreparedTarget = preparedTarget;
@@ -39,6 +41,7 @@ namespace UnityMediaRecorder
         public int MaximumFrameRate { get; }
         public int AntiAliasingSamples { get; }
         public VideoEncodingQuality EncodingQuality { get; }
+        public int NativeEncodingPreset { get; }
         public bool FlipVertically { get; }
         public bool CaptureScreen { get; }
         public RenderTexture PreparedTarget { get; }

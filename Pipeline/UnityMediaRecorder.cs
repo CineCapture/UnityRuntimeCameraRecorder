@@ -232,6 +232,7 @@ namespace UnityMediaRecorder
                 _settings.MaximumFrameRate,
                 _settings.AntiAliasingSamples,
                 _settings.EncodingQuality,
+                _settings.NativeEncodingPreset,
                 _settings.FlipVertically,
                 _settings.CaptureScreen,
                 _preparedVideoTarget,

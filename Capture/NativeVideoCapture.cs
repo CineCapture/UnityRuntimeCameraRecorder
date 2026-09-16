@@ -83,7 +83,7 @@ namespace UnityMediaRecorder
                     context.Width,
                     context.Height,
                     context.MaximumFrameRate,
-                    context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5,
+                    context.NativeEncodingPreset == 0 ? (context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5) : context.NativeEncodingPreset,
                     _packetCallback);
             if (_sessionId == 0)
             {
