@@ -1,84 +1,80 @@
 # UnityMediaRecorder
 
-Set `RecordingSettings.CaptureScreen = true` to capture the application's final displayed frame, including UI, instead of a camera target. Supply the normal camera and audio listener arguments; the screen source does not change that camera's target. Capture runs at end-of-frame on the GPU and scales resized windows to the configured output dimensions. In the Unity editor this captures the Game view, not editor panels; keep the Game view visible.
+Record a Unity camera, or the application's displayed view, with audio. Each recorder creates one MP4. The caller controls the camera, buttons, paths and recording duration.
 
-See [PERFORMANCE.md](PERFORMANCE.md) for the measured bottlenecks, rejected experiments and optimization roadmap.
+## Requirements
 
-Reusable capture and recording orchestration for Unity applications.
+For the current video backend: Windows x64, Unity running Direct3D 11, an NVIDIA GPU with NVENC and a recent driver. Include `UnityMediaRecorder.dll`, [Direct3DVideoEncoder.dll](https://github.com/end3rbyte/Direct3DVideoEncoder) and [FFmpegMediaWriter.dll](https://github.com/end3rbyte/FFmpegMediaWriter).
 
-The library captures video from Unity's normal camera render loop and captures the Unity audio mix. It delegates media transport, FFmpeg execution and output finalization to `FFmpegMediaWriter`. On Direct3D 11 and NVIDIA systems, it can use `Direct3DVideoEncoder.dll` for native H.264 encoding.
+Install FFmpeg separately and supply its executable path in `RecordingSettings.FfmpegPath`.
 
-It does not depend on Valheim or BepInEx. The calling application owns user input, camera behavior, configuration, interface and output naming.
+On Windows, follow the [FFmpeg download and extraction instructions](https://github.com/end3rbyte/FFmpegMediaWriter#download-and-setup) and supply the resulting `bin\ffmpeg.exe` path in `RecordingSettings.FfmpegPath`.
 
-## API
+## Video example
 
-Add `UnityMediaRecorder` to a Unity object, subscribe to its lifecycle events, then pass a camera, an audio listener and `RecordingSettings` to `StartRecording`. Call `StopRecording` to finish capture and create the MP4 file. Set `KeepIntermediateFile` to `true` only when the high-quality MKV archive must also be retained.
+Run this from your Unity component. `gameObject`, `camera` and `listener` belong to your scene. Create the output directory and use unused filenames. The FFmpeg path is only an example.
 
-Set `GeneratePreviewImage` to `true` and provide `PreviewImagePath` to save the prepared camera frame as a PNG immediately before video capture begins.
+```csharp
+using FFmpegMediaWriter;
+using UnityEngine;
+using UnityMediaRecorder;
 
-Set `AntiAliasingSamples` to `1`, `2`, `4` or `8`. Multisampled camera output is resolved on the GPU before readback or native encoding.
+var recorder = gameObject.AddComponent<global::UnityMediaRecorder.UnityMediaRecorder>();
+recorder.RecordingCompleted += () => Debug.Log("MP4 ready");
+recorder.RecordingFailed += error => Debug.LogException(error);
 
-`EncodingQuality` defaults to `Highest`, which maps to NVENC P5. Use `Balanced` for concurrent high-resolution recordings; the native backend maps it to P4 while retaining the same codec profile, bitrate and color metadata. Other backends may interpret this backend-neutral preference as appropriate.
+recorder.StartRecording(camera, listener, new RecordingSettings
+{
+    FfmpegPath = @"C:\tools\ffmpeg\bin\ffmpeg.exe",
+    TemporaryContainerPath = @"C:\Captures\session.mkv.tmp",
+    OutputPath = @"C:\Captures\session.mp4",
+    Width = 3840,
+    Height = 2160,
+    MaximumFrameRate = 60,
+    AntiAliasingSamples = 4,
+    NativeEncodingPreset = 5,
+    VideoStreamFormat = VideoStreamFormat.Hevc,
+    FlipVertically = SystemInfo.graphicsUVStartsAtTop
+});
 
-The main public API is `UnityMediaRecorder`, `RecordingSettings` and `MediaRecorderLog`. Pipes and FFmpeg processes remain internal.
+// Later: stop capture, then wait for completion or failure.
+recorder.StopRecording();
+```
 
-Select `RecordingSettings.VideoStreamFormat` explicitly (`FFmpegMediaWriter.VideoStreamFormat.H264`, the library default, or `.Hevc`). The backend validates the requested codec before writer setup and passes the same codec to the native session; no codec environment variable is needed. NVENC completion is asynchronous by default on supported Windows drivers. Set `DIRECT3D_NVENC_ASYNC=0` before launching only to diagnose the synchronous path. Codec selection cannot change during a recording.
+Keep the recorder, camera and listener alive through finalization. For two videos, use two recorder components. The FPS setting is a ceiling, not a guarantee.
 
-## PNG image sequences
+Options in `RecordingSettings`:
 
-Use `StartPngSequence` when individual lossless frames are needed instead of a video. The capture frequency can be lower or higher than one image per second and follows a wall-clock schedule, capped by the rate at which Unity renders frames. Stop the sequence with `StopPngSequence`.
+- `VideoStreamFormat`: H.264 (library default) or HEVC. NVENC completion is asynchronous by default.
+- `CaptureScreen = true`: record the application's displayed image, including UI. In the editor, this means the Game view, not editor panels.
+- `GeneratePreviewImage = true` with `PreviewImagePath`: save a PNG just before video capture.
+- `KeepIntermediateFile = true` with `ArchivePath`: keep the MKV after successful MP4 creation.
+
+FFmpeg assembles encoded video and audio without recompressing video. Audio comes from Unity's mix.
+
+## PNG sequence instead of video
+
+This mode uses no FFmpeg, NVENC or audio.
 
 ```csharp
 recorder.StartPngSequence(camera, new PngSequenceSettings
 {
     OutputDirectory = @"C:\Captures\Sequence",
     FileNamePrefix = "frame_",
-    Width = 3840,
-    Height = 2160,
-    CapturesPerSecond = 2.0,
-    InitialDelaySeconds = 0.0,
+    Width = 1920,
+    Height = 1080,
+    CapturesPerSecond = 1,
     AntiAliasingSamples = 4
 });
 
-// Later: writes no more images and raises RecordingCompleted.
+// Later.
 recorder.StopPngSequence();
 ```
 
-Files are named `frame_000000.png`, `frame_000001.png`, and so on. GPU readback is asynchronous, while PNG compression and disk writes run on a bounded background queue. `InitialDelaySeconds` can stagger several cameras so they do not request readback in the same rendered frame. This mode captures no audio and requires neither FFmpeg nor NVENC.
+## Build and extension
 
-## Video backends
+Build `UnityMediaRecorder.csproj` targeting .NET Framework 4.8 with the .NET 10 SDK: `dotnet msbuild UnityMediaRecorder.csproj /restore /p:Configuration=Release /p:UnityManagedPath="YOUR_UNITY_MANAGED_DIRECTORY"`. Set `UnityManagedPath` to Unity's managed UnityEngine assembly directory. Keep the three library repositories side by side for the project reference and native DLL copy. Although FFmpegMediaWriter is cross-platform, the current Direct3D/NVENC capture backend remains Windows-only.
 
-Video capture and encoding are replaceable through `VideoCaptureBackend`. A backend declares whether it sends H.264 or HEVC data, receives an immutable `VideoCaptureContext`, and writes timestamped encoded packets through that context. It never accesses the recorder's pipes or FFmpeg process directly.
+To add a video engine, implement `VideoCaptureBackend`, validate codec selection in `ConfigureStreamFormat` and register a factory with `VideoCaptureBackendRegistry.Register`. Write packets through `VideoCaptureContext.WritePacket`, not directly to FFmpeg. No software encoding fallback is included.
 
-Register a factory before starting a recording:
-
-```csharp
-VideoCaptureBackendRegistry.Register(
-    host => MyEncoder.IsAvailable
-        ? host.AddComponent<MyEncoder>()
-        : null,
-    priority: 200);
-```
-
-The factory returns `null` when its engine is unavailable. Higher priorities are selected first. The built-in D3D11/NVENC backend has priority `100`. There is no built-in video encoding fallback: recording reports an explicit error if no compatible backend is available. PNG capture remains independent. A custom backend needs no change in `UnityMediaRecorder`.
-
-The optional prepared `RenderTexture` passed to `StartRecording` remains owned by the caller. The selected backend may use it during capture but must not release or destroy it.
-
-The source files are grouped by domain: `Capture` contains Unity capture and video backends, while `Pipeline` contains only Unity recording orchestration and configuration.
-
-## Example
-
-The standalone [UnitySample](https://github.com/landoria-gaming/UnitySample) repository builds a lit cube scene entirely from code, with moving and fixed cameras. It demonstrates PNG sequences and native video recording. It is not included in the library repository.
-
-## Build
-
-Build `UnityMediaRecorder.csproj` with .NET Framework 4.8. Set the `UnityManagedPath` MSBuild property to the directory containing the Unity managed assemblies.
-
-## Runtime requirements
-
-- Unity with the required managed modules
-- `FFmpegMediaWriter.dll`
-- FFmpeg installed separately for multiplexing and audio encoding
-- `Direct3DVideoEncoder.dll` for the optional native NVIDIA path
-
-Released under the [MIT License](LICENSE).
+See [UnitySample](https://github.com/end3rbyte/UnitySample) for an editable scene and [PERFORMANCE.md](PERFORMANCE.md) for measurements. Our code uses the [MIT license](LICENSE); third-party licenses and codec patent rights are separate.

@@ -348,6 +348,11 @@ namespace UnityMediaRecorder
                 throw new ArgumentNullException(nameof(settings));
             }
 
+            if (string.IsNullOrWhiteSpace(settings.FfmpegPath))
+            {
+                throw new ArgumentException("FfmpegPath must specify the external FFmpeg executable.", nameof(settings));
+            }
+
             if (settings.Width < 2 || settings.Height < 2)
             {
                 throw new ArgumentOutOfRangeException(nameof(settings));
