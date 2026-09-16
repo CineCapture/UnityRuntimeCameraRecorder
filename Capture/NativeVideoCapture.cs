@@ -29,6 +29,8 @@ namespace UnityMediaRecorder
         private int _rejectedPackets;
         private Coroutine _captureCoroutine;
         private RenderTexture _screenTarget;
+        private string _diagnosticsJson;
+        public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
         public override VideoStreamFormat StreamFormat => VideoStreamFormat.H264;
 
@@ -56,6 +58,7 @@ namespace UnityMediaRecorder
         // Allocates the GPU target and initializes the native NVENC encoder.
         public override void StartCapture(VideoCaptureContext context)
         {
+            _diagnosticsJson = null;
             _context = context;
             _camera = context.Camera;
             bool needsResize = context.PreparedTarget != null && (context.PreparedTarget.width != context.Width || context.PreparedTarget.height != context.Height);
@@ -111,6 +114,13 @@ namespace UnityMediaRecorder
 
             _previousTarget = null;
             Direct3DVideoEncoderStop(_sessionId);
+            _diagnosticsJson = Marshal.PtrToStringAnsi(Direct3DVideoEncoderGetTelemetry(_sessionId));
+            MediaRecorderLog.WriteInfo("NATIVE_PIPELINE " + _diagnosticsJson);
+            string nativeError = GetNativeError(_sessionId);
+            if (!string.IsNullOrEmpty(nativeError))
+            {
+                MediaRecorderLog.WriteWarning("Native pipeline error: " + nativeError);
+            }
             MediaRecorderLog.WriteInfo($"Native capture frames: queued={Direct3DVideoEncoderGetQueuedFrameCount(_sessionId)}, " + $"encoded={Direct3DVideoEncoderGetEncodedFrameCount(_sessionId)}, " + $"dropped={Direct3DVideoEncoderGetDroppedFrameCount(_sessionId)}.");
             Direct3DVideoEncoderDestroy(_sessionId);
             _sessionId = 0;
@@ -267,5 +277,9 @@ namespace UnityMediaRecorder
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames skipped by the native surface pool.
         private static extern ulong Direct3DVideoEncoderGetDroppedFrameCount(int sessionId);
+
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
+        // Retrieves the final native pipeline counters and CPU stage timings.
+        private static extern IntPtr Direct3DVideoEncoderGetTelemetry(int sessionId);
     }
 }

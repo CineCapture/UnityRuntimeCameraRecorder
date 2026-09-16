@@ -18,7 +18,7 @@ The standalone test player must remain visible. Unity's `-batchmode` option disa
 
 ## Invalid asynchronous test
 
-The first NVENC asynchronous-completion experiment was run with Unity's `-batchmode` option. Its black frames came from cameras rendering zero frames, as confirmed by the render counters. That run cannot be used to accept or reject asynchronous NVENC. The experimental code was removed so the repository retains only the validated synchronous path.
+The first NVENC asynchronous-completion experiment was run with Unity's `-batchmode` option. Its black frames came from cameras rendering zero frames, as confirmed by the render counters. That run cannot be used to accept or reject asynchronous NVENC. That code was removed at the time. A new opt-in implementation is described below; synchronous completion remains the default.
 
 ## Next P5 optimization attempt
 
@@ -31,3 +31,24 @@ The first NVENC asynchronous-completion experiment was run with Unity's `-batchm
 If Unity sustains 60 FPS but both NVENC completion rates remain below 60 FPS, the limiting factor is aggregate P5 capacity on the tested GPU rather than Unity synchronization. At that point, retaining P5 would require a different codec or NVENC configuration, a lower per-camera resolution or frame rate, or faster hardware; P4 remains the validated fallback rather than the desired final result.
 
 Secondary improvements are pooled packet buffers, one shared audio producer and temporal-effect optimization guarded by visual regression comparisons.
+
+## Visible asynchronous test — 2026-09-16
+
+The experimental NVIDIA implementation separates submission and output completion into two workers, with registered Windows completion events. Both synchronous and asynchronous paths now use four owned surfaces, the NVIDIA minimum with zero B-frames. Configuration and image processing are unchanged.
+
+On the RTX 5060, two 4K/P5 cameras with VSync and MSAA 4x were recorded for ten seconds in a visible player:
+
+- Synchronous: 39.17 Unity render FPS; 361 and 300 completed native frames.
+- Asynchronous, repeated after fixing EOS event handling: about 59 Unity render FPS; 441 and 433 completed native frames, with 166 and 174 requests dropped because the four surfaces were busy. Every copied frame was submitted and completed. No native error was logged in the corrected run.
+
+This improves rendering responsiveness, but does **not** achieve two 60 FPS videos. Output verification must use decoded frame counts, not just the 60 FPS setting or Unity render counters. Aggregate P5 hardware saturation is not yet proven: GPU-copy waits (~19 ms) and completion waits (~23 ms) still require investigation. These are CPU wall-clock waits, not GPU execution measurements, and overlap across workers.
+
+Enable the experiment before launching the application in PowerShell:
+
+```powershell
+$env:DIRECT3D_NVENC_ASYNC = '1'
+```
+
+Use `'0'` or remove the variable to return to synchronous completion. The switch belongs to the NVIDIA backend, not the reusable recorder configuration. Native telemetry is logged as `NATIVE_PIPELINE` JSON and retained by `UnityMediaRecorder.LastVideoDiagnosticsJson` after stopping. It reports requests, copies, submissions, completions, drops, peak queue depths and stage averages. This is backend telemetry; muxed counts still require ffprobe.
+
+Next controlled test: increase the owned surface ring identically in both modes, measure surface starvation and GPU/context contention, and verify decoded frames and timestamps before changing the default. Reference: [NVIDIA Video Codec SDK 13.1 programming guide](https://docs.nvidia.com/video-technologies/video-codec-sdk/13.1/nvenc-video-encoder-api-prog-guide/index.html).

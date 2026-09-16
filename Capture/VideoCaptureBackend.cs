@@ -8,6 +8,7 @@ namespace UnityMediaRecorder
     {
         public abstract string Name { get; }
         public abstract VideoStreamFormat StreamFormat { get; }
+        public virtual string DiagnosticsJson => null;
 
         // Starts producing video data for one recording session.
         public abstract void StartCapture(VideoCaptureContext context);

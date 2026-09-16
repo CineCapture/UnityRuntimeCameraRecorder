@@ -31,6 +31,8 @@ namespace UnityMediaRecorder
         public bool IsFinalizing => _writer?.IsFinalizing == true;
         public bool IsBusy => IsCapturing || IsFinalizing;
         public string ActiveVideoBackendName => _videoBackend?.Name;
+        // Retains optional backend telemetry after capture resources have been released.
+        public string LastVideoDiagnosticsJson { get; private set; }
         public int CapturedPngFrameCount => _pngSequenceCapture?.CapturedFrameCount ?? _lastCapturedPngFrameCount;
 
         // Creates capture resources and begins one asynchronous recording session.
@@ -42,6 +44,7 @@ namespace UnityMediaRecorder
             }
 
             ValidateArguments(camera, listener, settings);
+            LastVideoDiagnosticsJson = null;
             _camera = camera;
             _listener = listener;
             _settings = settings;
@@ -262,6 +265,7 @@ namespace UnityMediaRecorder
                 if (_videoCaptureStarted)
                 {
                     _videoBackend.StopCapture();
+                    LastVideoDiagnosticsJson = _videoBackend.DiagnosticsJson;
                 }
 
                 Destroy(_videoBackend);
