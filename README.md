@@ -16,6 +16,8 @@ Set `GeneratePreviewImage` to `true` and provide `PreviewImagePath` to save the 
 
 Set `AntiAliasingSamples` to `1`, `2`, `4` or `8`. Multisampled camera output is resolved on the GPU before readback or native encoding.
 
+`EncodingQuality` defaults to `Highest`, which maps to NVENC P5. Use `Balanced` for concurrent high-resolution recordings; the native backend maps it to P4 while retaining the same codec profile, bitrate and color metadata. Other backends may interpret this backend-neutral preference as appropriate.
+
 The main public API is `UnityMediaRecorder`, `RecordingSettings` and `MediaRecorderLog`. Pipes and FFmpeg processes remain internal.
 
 ## PNG image sequences

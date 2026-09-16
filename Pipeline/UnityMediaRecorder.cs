@@ -234,6 +234,7 @@ namespace Landoria.UnityMediaRecorder
                 _settings.Height,
                 _settings.MaximumFrameRate,
                 _settings.AntiAliasingSamples,
+                _settings.EncodingQuality,
                 _settings.FlipVertically,
                 _preparedVideoTarget,
                 _writer.WriteVideoFrame,

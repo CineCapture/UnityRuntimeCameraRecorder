@@ -81,6 +81,7 @@ namespace Landoria.UnityMediaRecorder
                     context.Width,
                     context.Height,
                     context.MaximumFrameRate,
+                    context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5,
                     _packetCallback);
             if (_sessionId == 0)
             {
@@ -242,6 +243,7 @@ namespace Landoria.UnityMediaRecorder
             int width,
             int height,
             int frameRate,
+            int preset,
             PacketCallback callback);
 
         [DllImport("Landoria.D3D11NvencEncoder", CallingConvention = CallingConvention.StdCall)]

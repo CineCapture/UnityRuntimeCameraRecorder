@@ -14,6 +14,7 @@ namespace Landoria.UnityMediaRecorder
         public int Height { get; set; }
         public int MaximumFrameRate { get; set; } = 60;
         public int AntiAliasingSamples { get; set; } = 1;
+        public VideoEncodingQuality EncodingQuality { get; set; } = VideoEncodingQuality.Highest;
         public bool FlipVertically { get; set; }
     }
 }

@@ -780,6 +780,7 @@ namespace Landoria.UnityMediaRecorder.Example
                 Height = height,
                 MaximumFrameRate = frameRate,
                 AntiAliasingSamples = antiAliasingSamples,
+                EncodingQuality = VideoEncodingQuality.Balanced,
                 FlipVertically = SystemInfo.graphicsUVStartsAtTop
             };
         }

@@ -16,6 +16,7 @@ namespace Landoria.UnityMediaRecorder
             int height,
             int maximumFrameRate,
             int antiAliasingSamples,
+            VideoEncodingQuality encodingQuality,
             bool flipVertically,
             RenderTexture preparedTarget,
             Func<byte[], long, bool> writeFrame,
@@ -26,6 +27,7 @@ namespace Landoria.UnityMediaRecorder
             Height = height;
             MaximumFrameRate = maximumFrameRate;
             AntiAliasingSamples = antiAliasingSamples;
+            EncodingQuality = encodingQuality;
             FlipVertically = flipVertically;
             PreparedTarget = preparedTarget;
             _writeFrame = writeFrame;
@@ -37,6 +39,7 @@ namespace Landoria.UnityMediaRecorder
         public int Height { get; }
         public int MaximumFrameRate { get; }
         public int AntiAliasingSamples { get; }
+        public VideoEncodingQuality EncodingQuality { get; }
         public bool FlipVertically { get; }
         public RenderTexture PreparedTarget { get; }
 
