@@ -22,13 +22,11 @@ namespace UnityMediaRecorder
         private bool _writerStarted;
         private PngSequenceCapture _pngSequenceCapture;
         private int _lastCapturedPngFrameCount;
-
         public event Action CaptureStarted;
         public event Action CaptureStarting;
         public event Action FinalizationStarted;
         public event Action RecordingCompleted;
         public event Action<Exception> RecordingFailed;
-
         public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes || _pngSequenceCapture != null;
         public bool IsFinalizing => _writer?.IsFinalizing == true;
         public bool IsBusy => IsCapturing || IsFinalizing;
@@ -36,11 +34,7 @@ namespace UnityMediaRecorder
         public int CapturedPngFrameCount => _pngSequenceCapture?.CapturedFrameCount ?? _lastCapturedPngFrameCount;
 
         // Creates capture resources and begins one asynchronous recording session.
-        public void StartRecording(
-            Camera camera,
-            AudioListener listener,
-            RecordingSettings settings,
-            RenderTexture preparedVideoTarget = null)
+        public void StartRecording(Camera camera, AudioListener listener, RecordingSettings settings, RenderTexture preparedVideoTarget = null)
         {
             if (IsBusy)
             {
@@ -71,10 +65,7 @@ namespace UnityMediaRecorder
         }
 
         // Starts a camera-only PNG image sequence without FFmpeg, audio or a video encoder.
-        public void StartPngSequence(
-            Camera camera,
-            PngSequenceSettings settings,
-            RenderTexture preparedTarget = null)
+        public void StartPngSequence(Camera camera, PngSequenceSettings settings, RenderTexture preparedTarget = null)
         {
             if (IsBusy)
             {
@@ -174,20 +165,7 @@ namespace UnityMediaRecorder
             _waitingForAudio = false;
             try
             {
-                _writer.Start(new MediaWriterSettings
-                {
-                    FfmpegPath = _settings.FfmpegPath,
-                    TemporaryContainerPath = _settings.TemporaryContainerPath,
-                    ArchivePath = _settings.ArchivePath,
-                    KeepIntermediateFile = _settings.KeepIntermediateFile,
-                    OutputPath = _settings.OutputPath,
-                    MaximumFrameRate = _settings.MaximumFrameRate,
-                    AudioSampleRate = _audio.SampleRate,
-                    AudioChannels = _audio.Channels,
-                    VideoStreamFormat = _videoStreamFormat,
-                    Warning = MediaRecorderLog.WriteWarning,
-                    Error = MediaRecorderLog.WriteError
-                });
+                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, ArchivePath = _settings.ArchivePath, KeepIntermediateFile = _settings.KeepIntermediateFile, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, Warning = MediaRecorderLog.WriteWarning, Error = MediaRecorderLog.WriteError });
                 _writerStarted = true;
                 _waitingForPipes = true;
             }
@@ -225,18 +203,7 @@ namespace UnityMediaRecorder
         // Starts the selected backend that produces encoded video packets.
         private void StartVideoCapture()
         {
-            var context = new VideoCaptureContext(
-                _camera,
-                _settings.Width,
-                _settings.Height,
-                _settings.MaximumFrameRate,
-                _settings.AntiAliasingSamples,
-                _settings.EncodingQuality,
-                _settings.NativeEncodingPreset,
-                _settings.FlipVertically,
-                _settings.CaptureScreen,
-                _preparedVideoTarget,
-                _writer.WriteVideoPacket);
+            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _settings.EncodingQuality, _settings.NativeEncodingPreset, _settings.FlipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _videoCaptureStarted = true;
         }
@@ -252,20 +219,14 @@ namespace UnityMediaRecorder
             RenderTexture source = _preparedVideoTarget ?? _camera.targetTexture;
             if (source == null)
             {
-                throw new InvalidOperationException(
-                    "Preview-image generation requires a prepared video target or a camera target texture.");
+                throw new InvalidOperationException("Preview-image generation requires a prepared video target or a camera target texture.");
             }
 
             RenderTexture readableSource = source;
             RenderTexture resolvedSource = null;
             if (source.antiAliasing > 1)
             {
-                resolvedSource = new RenderTexture(
-                    source.width,
-                    source.height,
-                    0,
-                    RenderTextureFormat.ARGB32,
-                    RenderTextureReadWrite.sRGB);
+                resolvedSource = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                 resolvedSource.Create();
                 Graphics.Blit(source, resolvedSource);
                 readableSource = resolvedSource;
@@ -308,13 +269,11 @@ namespace UnityMediaRecorder
             }
 
             _videoCaptureStarted = false;
-
             if (_audio != null)
             {
                 Destroy(_audio);
                 _audio = null;
             }
-
         }
 
         // Starts background MP4 creation without re-encoding native H.265 video.
@@ -369,30 +328,104 @@ namespace UnityMediaRecorder
         // Rejects missing or invalid session arguments before resources are allocated.
         private static void ValidateArguments(Camera camera, AudioListener listener, RecordingSettings settings)
         {
-            if (camera == null) throw new ArgumentNullException(nameof(camera));
-            if (listener == null) throw new ArgumentNullException(nameof(listener));
-            if (settings == null) throw new ArgumentNullException(nameof(settings));
-            if (settings.Width < 2 || settings.Height < 2) throw new ArgumentOutOfRangeException(nameof(settings));
-            if (settings.MaximumFrameRate < 1) throw new ArgumentOutOfRangeException(nameof(settings));
-            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8) throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
-            if (string.IsNullOrWhiteSpace(settings.TemporaryContainerPath)) throw new ArgumentException("A temporary container path is required.", nameof(settings));
-            if (settings.KeepIntermediateFile && string.IsNullOrWhiteSpace(settings.ArchivePath)) throw new ArgumentException("An archive path is required when keeping the intermediate file.", nameof(settings));
-            if (settings.GeneratePreviewImage && string.IsNullOrWhiteSpace(settings.PreviewImagePath)) throw new ArgumentException("A preview image path is required when generating a preview image.", nameof(settings));
-            if (string.IsNullOrWhiteSpace(settings.OutputPath)) throw new ArgumentException("An output path is required.", nameof(settings));
+            if (camera == null)
+            {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            if (listener == null)
+            {
+                throw new ArgumentNullException(nameof(listener));
+            }
+
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (settings.Width < 2 || settings.Height < 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings));
+            }
+
+            if (settings.MaximumFrameRate < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings));
+            }
+
+            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.TemporaryContainerPath))
+            {
+                throw new ArgumentException("A temporary container path is required.", nameof(settings));
+            }
+
+            if (settings.KeepIntermediateFile && string.IsNullOrWhiteSpace(settings.ArchivePath))
+            {
+                throw new ArgumentException("An archive path is required when keeping the intermediate file.", nameof(settings));
+            }
+
+            if (settings.GeneratePreviewImage && string.IsNullOrWhiteSpace(settings.PreviewImagePath))
+            {
+                throw new ArgumentException("A preview image path is required when generating a preview image.", nameof(settings));
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.OutputPath))
+            {
+                throw new ArgumentException("An output path is required.", nameof(settings));
+            }
         }
 
         // Rejects missing or invalid PNG sequence arguments before resources are allocated.
         private static void ValidatePngSequenceArguments(Camera camera, PngSequenceSettings settings)
         {
-            if (camera == null) throw new ArgumentNullException(nameof(camera));
-            if (settings == null) throw new ArgumentNullException(nameof(settings));
-            if (string.IsNullOrWhiteSpace(settings.OutputDirectory)) throw new ArgumentException("An output directory is required.", nameof(settings));
-            if (string.IsNullOrWhiteSpace(settings.FileNamePrefix)) throw new ArgumentException("A file name prefix is required.", nameof(settings));
-            if (settings.FileNamePrefix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) throw new ArgumentException("The file name prefix contains invalid characters.", nameof(settings));
-            if (settings.Width < 2 || settings.Height < 2) throw new ArgumentOutOfRangeException(nameof(settings));
-            if (double.IsNaN(settings.CapturesPerSecond) || double.IsInfinity(settings.CapturesPerSecond) || settings.CapturesPerSecond <= 0.0) throw new ArgumentOutOfRangeException(nameof(settings));
-            if (double.IsNaN(settings.InitialDelaySeconds) || double.IsInfinity(settings.InitialDelaySeconds) || settings.InitialDelaySeconds < 0.0) throw new ArgumentOutOfRangeException(nameof(settings));
-            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8) throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
+            if (camera == null)
+            {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.OutputDirectory))
+            {
+                throw new ArgumentException("An output directory is required.", nameof(settings));
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.FileNamePrefix))
+            {
+                throw new ArgumentException("A file name prefix is required.", nameof(settings));
+            }
+
+            if (settings.FileNamePrefix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                throw new ArgumentException("The file name prefix contains invalid characters.", nameof(settings));
+            }
+
+            if (settings.Width < 2 || settings.Height < 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings));
+            }
+
+            if (double.IsNaN(settings.CapturesPerSecond) || double.IsInfinity(settings.CapturesPerSecond) || settings.CapturesPerSecond <= 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings));
+            }
+
+            if (double.IsNaN(settings.InitialDelaySeconds) || double.IsInfinity(settings.InitialDelaySeconds) || settings.InitialDelaySeconds < 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings));
+            }
+
+            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
+            }
         }
     }
 }

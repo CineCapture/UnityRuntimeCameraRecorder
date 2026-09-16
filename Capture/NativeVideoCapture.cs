@@ -12,7 +12,6 @@ namespace UnityMediaRecorder
     {
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate void PacketCallback(IntPtr data, int length, long timestampMicroseconds);
-
         private VideoCaptureContext _context;
         private Camera _camera;
         private RenderTexture _renderTarget;
@@ -30,7 +29,6 @@ namespace UnityMediaRecorder
         private int _rejectedPackets;
         private Coroutine _captureCoroutine;
         private RenderTexture _screenTarget;
-
         public override string Name => "D3D11 NVENC";
         public override VideoStreamFormat StreamFormat => VideoStreamFormat.H264;
 
@@ -60,31 +58,19 @@ namespace UnityMediaRecorder
         {
             _context = context;
             _camera = context.Camera;
-            bool needsResize = context.PreparedTarget != null &&
-                (context.PreparedTarget.width != context.Width || context.PreparedTarget.height != context.Height);
+            bool needsResize = context.PreparedTarget != null && (context.PreparedTarget.width != context.Width || context.PreparedTarget.height != context.Height);
             bool needsResolve = (context.PreparedTarget?.antiAliasing ?? context.AntiAliasingSamples) > 1;
             if (context.FlipVertically || needsResolve || needsResize)
             {
-                _renderTarget = context.PreparedTarget ?? CreateTarget(
-                    context.Width,
-                    context.Height,
-                    context.AntiAliasingSamples);
+                _renderTarget = context.PreparedTarget ?? CreateTarget(context.Width, context.Height, context.AntiAliasingSamples);
                 _ownsRenderTarget = context.PreparedTarget == null;
             }
 
-            _target = !context.FlipVertically && !needsResolve && !needsResize && context.PreparedTarget != null
-                ? context.PreparedTarget
-                : CreateTarget(context.Width, context.Height, 1);
+            _target = !context.FlipVertically && !needsResolve && !needsResize && context.PreparedTarget != null ? context.PreparedTarget : CreateTarget(context.Width, context.Height, 1);
             _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve || needsResize;
             _packetCallback = ReceivePacket;
             _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
-            _sessionId = Direct3DVideoEncoderStart(
-                    _target.GetNativeTexturePtr(),
-                    context.Width,
-                    context.Height,
-                    context.MaximumFrameRate,
-                    context.NativeEncodingPreset == 0 ? (context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5) : context.NativeEncodingPreset,
-                    _packetCallback);
+            _sessionId = Direct3DVideoEncoderStart(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, context.NativeEncodingPreset == 0 ? (context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5) : context.NativeEncodingPreset, _packetCallback);
             if (_sessionId == 0)
             {
                 throw new InvalidOperationException(GetNativeError(0));
@@ -94,10 +80,17 @@ namespace UnityMediaRecorder
             _nextCaptureTimestamp = 0;
             _previousTarget = _camera.targetTexture;
             _previousEnabled = _camera.enabled;
-            if (!context.CaptureScreen) _camera.targetTexture = _renderTarget ?? _target;
+            if (!context.CaptureScreen)
+            {
+                _camera.targetTexture = _renderTarget ?? _target;
+            }
+
             _active = true;
             _captureCoroutine = StartCoroutine(CaptureFramesAtEndOfFrame());
-            if (!context.CaptureScreen) _camera.enabled = true;
+            if (!context.CaptureScreen)
+            {
+                _camera.enabled = true;
+            }
         }
 
         // Stops NVENC capture and releases the GPU target.
@@ -109,18 +102,16 @@ namespace UnityMediaRecorder
                 StopCoroutine(_captureCoroutine);
                 _captureCoroutine = null;
             }
+
             if (!_context.CaptureScreen)
             {
                 _camera.enabled = _previousEnabled;
                 _camera.targetTexture = _previousTarget;
             }
-            _previousTarget = null;
 
+            _previousTarget = null;
             Direct3DVideoEncoderStop(_sessionId);
-            MediaRecorderLog.WriteInfo(
-                $"Native capture frames: queued={Direct3DVideoEncoderGetQueuedFrameCount(_sessionId)}, " +
-                $"encoded={Direct3DVideoEncoderGetEncodedFrameCount(_sessionId)}, " +
-                $"dropped={Direct3DVideoEncoderGetDroppedFrameCount(_sessionId)}.");
+            MediaRecorderLog.WriteInfo($"Native capture frames: queued={Direct3DVideoEncoderGetQueuedFrameCount(_sessionId)}, " + $"encoded={Direct3DVideoEncoderGetEncodedFrameCount(_sessionId)}, " + $"dropped={Direct3DVideoEncoderGetDroppedFrameCount(_sessionId)}.");
             Direct3DVideoEncoderDestroy(_sessionId);
             _sessionId = 0;
             if (_rejectedPackets > 0)
@@ -154,12 +145,7 @@ namespace UnityMediaRecorder
         // Creates one sRGB render texture compatible with Unity camera output.
         private static RenderTexture CreateTarget(int width, int height, int antiAliasingSamples)
         {
-            var target = new RenderTexture(
-                width,
-                height,
-                0,
-                RenderTextureFormat.ARGB32,
-                RenderTextureReadWrite.sRGB);
+            var target = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
             target.antiAliasing = antiAliasingSamples;
             target.Create();
             return target;
@@ -203,8 +189,10 @@ namespace UnityMediaRecorder
                         _screenTarget.Release();
                         Destroy(_screenTarget);
                     }
+
                     _screenTarget = CreateTarget(Screen.width, Screen.height, 1);
                 }
+
                 RenderTexture previousActive = RenderTexture.active;
                 RenderTexture.active = null;
                 ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenTarget);
@@ -216,11 +204,7 @@ namespace UnityMediaRecorder
             {
                 if (_context.FlipVertically)
                 {
-                    Graphics.Blit(
-                        _renderTarget,
-                        _target,
-                        new Vector2(1f, -1f),
-                        new Vector2(0f, 1f));
+                    Graphics.Blit(_renderTarget, _target, new Vector2(1f, -1f), new Vector2(0f, 1f));
                 }
                 else
                 {
@@ -258,48 +242,30 @@ namespace UnityMediaRecorder
 
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Initializes the native encoder for a Unity texture.
-        private static extern int Direct3DVideoEncoderStart(
-            IntPtr texture,
-            int width,
-            int height,
-            int frameRate,
-            int preset,
-            PacketCallback callback);
-
+        private static extern int Direct3DVideoEncoderStart(IntPtr texture, int width, int height, int frameRate, int preset, PacketCallback callback);
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Queues a texture for processing by the Unity render thread callback.
-        private static extern void Direct3DVideoEncoderQueueTexture(
-            int sessionId,
-            IntPtr texture,
-            long timestampMicroseconds);
-
+        private static extern void Direct3DVideoEncoderQueueTexture(int sessionId, IntPtr texture, long timestampMicroseconds);
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the native Unity render event callback.
         private static extern IntPtr Direct3DVideoEncoderGetRenderEventFunction();
-
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Stops and flushes the native encoder.
         private static extern void Direct3DVideoEncoderStop(int sessionId);
-
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Removes a stopped native encoder session.
         private static extern void Direct3DVideoEncoderDestroy(int sessionId);
-
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the last native encoder error.
         private static extern IntPtr Direct3DVideoEncoderGetLastError(int sessionId);
-
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames accepted into the native surface pool.
         private static extern ulong Direct3DVideoEncoderGetQueuedFrameCount(int sessionId);
-
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames successfully encoded by NVENC.
         private static extern ulong Direct3DVideoEncoderGetEncodedFrameCount(int sessionId);
-
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Retrieves the number of frames skipped by the native surface pool.
         private static extern ulong Direct3DVideoEncoderGetDroppedFrameCount(int sessionId);
-
     }
 }
