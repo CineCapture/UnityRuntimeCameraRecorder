@@ -16,5 +16,6 @@ namespace UnityMediaRecorder
         public int AntiAliasingSamples { get; set; } = 1;
         public VideoEncodingQuality EncodingQuality { get; set; } = VideoEncodingQuality.Highest;
         public bool FlipVertically { get; set; }
+        public bool CaptureScreen { get; set; }
     }
 }

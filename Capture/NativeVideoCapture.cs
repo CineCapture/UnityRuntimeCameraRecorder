@@ -29,6 +29,7 @@ namespace UnityMediaRecorder
         private bool _active;
         private int _rejectedPackets;
         private Coroutine _captureCoroutine;
+        private RenderTexture _screenTarget;
 
         public override string Name => "D3D11 NVENC";
         public override VideoStreamFormat StreamFormat => VideoStreamFormat.H264;
@@ -59,9 +60,10 @@ namespace UnityMediaRecorder
         {
             _context = context;
             _camera = context.Camera;
-            ValidatePreparedTarget(context.PreparedTarget, context.Width, context.Height);
-            bool needsResolve = context.AntiAliasingSamples > 1;
-            if (context.FlipVertically || needsResolve)
+            bool needsResize = context.PreparedTarget != null &&
+                (context.PreparedTarget.width != context.Width || context.PreparedTarget.height != context.Height);
+            bool needsResolve = (context.PreparedTarget?.antiAliasing ?? context.AntiAliasingSamples) > 1;
+            if (context.FlipVertically || needsResolve || needsResize)
             {
                 _renderTarget = context.PreparedTarget ?? CreateTarget(
                     context.Width,
@@ -70,10 +72,10 @@ namespace UnityMediaRecorder
                 _ownsRenderTarget = context.PreparedTarget == null;
             }
 
-            _target = !context.FlipVertically && !needsResolve && context.PreparedTarget != null
+            _target = !context.FlipVertically && !needsResolve && !needsResize && context.PreparedTarget != null
                 ? context.PreparedTarget
                 : CreateTarget(context.Width, context.Height, 1);
-            _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve;
+            _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve || needsResize;
             _packetCallback = ReceivePacket;
             _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
             _sessionId = Direct3DVideoEncoderStart(
@@ -92,10 +94,10 @@ namespace UnityMediaRecorder
             _nextCaptureTimestamp = 0;
             _previousTarget = _camera.targetTexture;
             _previousEnabled = _camera.enabled;
-            _camera.targetTexture = _renderTarget ?? _target;
+            if (!context.CaptureScreen) _camera.targetTexture = _renderTarget ?? _target;
             _active = true;
             _captureCoroutine = StartCoroutine(CaptureFramesAtEndOfFrame());
-            _camera.enabled = true;
+            if (!context.CaptureScreen) _camera.enabled = true;
         }
 
         // Stops NVENC capture and releases the GPU target.
@@ -107,8 +109,11 @@ namespace UnityMediaRecorder
                 StopCoroutine(_captureCoroutine);
                 _captureCoroutine = null;
             }
-            _camera.enabled = _previousEnabled;
-            _camera.targetTexture = _previousTarget;
+            if (!_context.CaptureScreen)
+            {
+                _camera.enabled = _previousEnabled;
+                _camera.targetTexture = _previousTarget;
+            }
             _previousTarget = null;
 
             Direct3DVideoEncoderStop(_sessionId);
@@ -138,6 +143,12 @@ namespace UnityMediaRecorder
             }
 
             _target = null;
+            if (_screenTarget != null)
+            {
+                _screenTarget.Release();
+                Destroy(_screenTarget);
+                _screenTarget = null;
+            }
         }
 
         // Creates one sRGB render texture compatible with Unity camera output.
@@ -152,15 +163,6 @@ namespace UnityMediaRecorder
             target.antiAliasing = antiAliasingSamples;
             target.Create();
             return target;
-        }
-
-        // Rejects a prepared target whose dimensions do not match the recording.
-        private static void ValidatePreparedTarget(RenderTexture target, int width, int height)
-        {
-            if (target != null && (target.width != width || target.height != height))
-            {
-                throw new ArgumentException("The prepared video target does not match the recording dimensions.");
-            }
         }
 
         // Waits until every camera and Canvas has completed before sampling the final target.
@@ -190,6 +192,24 @@ namespace UnityMediaRecorder
             if (_nextCaptureTimestamp == 0)
             {
                 _nextCaptureTimestamp = timestamp;
+            }
+
+            if (_context.CaptureScreen)
+            {
+                if (_screenTarget == null || _screenTarget.width != Screen.width || _screenTarget.height != Screen.height)
+                {
+                    if (_screenTarget != null)
+                    {
+                        _screenTarget.Release();
+                        Destroy(_screenTarget);
+                    }
+                    _screenTarget = CreateTarget(Screen.width, Screen.height, 1);
+                }
+                RenderTexture previousActive = RenderTexture.active;
+                RenderTexture.active = null;
+                ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenTarget);
+                RenderTexture.active = previousActive;
+                Graphics.Blit(_screenTarget, _renderTarget ?? _target);
             }
 
             if (_renderTarget != null)

@@ -233,6 +233,7 @@ namespace UnityMediaRecorder
                 _settings.AntiAliasingSamples,
                 _settings.EncodingQuality,
                 _settings.FlipVertically,
+                _settings.CaptureScreen,
                 _preparedVideoTarget,
                 _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);

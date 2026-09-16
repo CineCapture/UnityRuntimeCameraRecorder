@@ -17,6 +17,7 @@ namespace UnityMediaRecorder
             int antiAliasingSamples,
             VideoEncodingQuality encodingQuality,
             bool flipVertically,
+            bool captureScreen,
             RenderTexture preparedTarget,
             Func<byte[], long, bool> writePacket)
         {
@@ -27,6 +28,7 @@ namespace UnityMediaRecorder
             AntiAliasingSamples = antiAliasingSamples;
             EncodingQuality = encodingQuality;
             FlipVertically = flipVertically;
+            CaptureScreen = captureScreen;
             PreparedTarget = preparedTarget;
             _writePacket = writePacket;
         }
@@ -38,6 +40,7 @@ namespace UnityMediaRecorder
         public int AntiAliasingSamples { get; }
         public VideoEncodingQuality EncodingQuality { get; }
         public bool FlipVertically { get; }
+        public bool CaptureScreen { get; }
         public RenderTexture PreparedTarget { get; }
 
         // Writes one indivisible encoded packet with its monotonic presentation timestamp.

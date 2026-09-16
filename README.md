@@ -1,5 +1,7 @@
 # UnityMediaRecorder
 
+Set `RecordingSettings.CaptureScreen = true` to capture the application's final displayed frame, including UI, instead of a camera target. Supply the normal camera and audio listener arguments; the screen source does not change that camera's target. Capture runs at end-of-frame on the GPU and scales resized windows to the configured output dimensions. In the Unity editor this captures the Game view, not editor panels; keep the Game view visible.
+
 See [PERFORMANCE.md](PERFORMANCE.md) for the measured bottlenecks, rejected experiments and optimization roadmap.
 
 Reusable capture and recording orchestration for Unity applications.
