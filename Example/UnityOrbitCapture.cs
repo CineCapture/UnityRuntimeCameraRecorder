@@ -16,6 +16,8 @@ namespace Landoria.UnityMediaRecorder.Example
         private Camera _camera;
         private Camera _overlayCamera;
         private Camera _staticCamera;
+        private TemporalMotionSmoothing _mainTemporalSmoothing;
+        private TemporalMotionSmoothing _staticTemporalSmoothing;
         private Text _fpsText;
         private Text _staticFpsText;
         private RenderTexture _preparedTarget;
@@ -29,14 +31,19 @@ namespace Landoria.UnityMediaRecorder.Example
         private int _fpsFrameCount;
         private float _renderFramesPerSecond;
         private long _lastFpsTimestamp;
-        private int _targetFrameRate;
+        private float _staticFpsElapsed;
+        private int _staticFpsFrameCount;
+        private float _staticRenderFramesPerSecond;
+        private long _staticLastFpsTimestamp;
         private int _captureWidth;
         private int _captureHeight;
         private int _antiAliasingSamples;
         private float _captureStartTime;
         private int _renderedFramesSinceCapture;
+        private int _staticRenderedFramesSinceCapture;
         private int _previousTargetFrameRate;
         private int _previousVSyncCount;
+        private string _benchmarkMode;
 
         // Creates the example automatically when an otherwise empty scene enters Play mode.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -48,6 +55,7 @@ namespace Landoria.UnityMediaRecorder.Example
         // Builds the scene and begins the self-contained recording workflow.
         private void Start()
         {
+            _benchmarkMode = Environment.GetEnvironmentVariable("CAPTURE_BENCHMARK_MODE") ?? string.Empty;
             ConfigureFramePacing();
             BuildScene();
             StartCoroutine(RecordOrbit());
@@ -200,7 +208,7 @@ namespace Landoria.UnityMediaRecorder.Example
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = new Color(0.04f, 0.06f, 0.1f);
             _camera.cullingMask &= ~(1 << OverlayLayer);
-            cameraObject.AddComponent<TemporalMotionSmoothing>();
+            _mainTemporalSmoothing = cameraObject.AddComponent<TemporalMotionSmoothing>();
             cameraObject.AddComponent<AudioListener>();
             GameObject overlayCameraObject = new GameObject("OverlayCamera");
             overlayCameraObject.transform.SetParent(cameraObject.transform, false);
@@ -220,7 +228,7 @@ namespace Landoria.UnityMediaRecorder.Example
             _staticCamera.backgroundColor = _camera.backgroundColor;
             _staticCamera.transform.position = new Vector3(-5.2f, 3.2f, -5.2f);
             _staticCamera.transform.LookAt(Vector3.up * 0.55f);
-            staticCameraObject.AddComponent<TemporalMotionSmoothing>();
+            _staticTemporalSmoothing = staticCameraObject.AddComponent<TemporalMotionSmoothing>();
             _staticFpsText = CreateDiagnosticOverlay(_staticCamera, "StaticCameraDiagnostics");
 
             _recorder = gameObject.AddComponent<UnityMediaRecorder>();
@@ -486,12 +494,46 @@ namespace Landoria.UnityMediaRecorder.Example
         // Counts completed renders from the example camera inside Unity's normal render loop.
         private void HandleCameraPostRender(Camera renderedCamera)
         {
-            if (renderedCamera != _camera)
+            long timestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (renderedCamera == _camera)
+            {
+                UpdateFrameRateMeasurement(timestamp);
+                return;
+            }
+
+            if (renderedCamera == _staticCamera)
+            {
+                UpdateStaticFrameRateMeasurement(timestamp);
+            }
+        }
+
+        // Updates the measured rate after one static-camera render completes.
+        private void UpdateStaticFrameRateMeasurement(long timestamp)
+        {
+            if (_staticFpsText == null)
             {
                 return;
             }
 
-            UpdateFrameRateMeasurement(System.Diagnostics.Stopwatch.GetTimestamp());
+            if (_staticLastFpsTimestamp == 0)
+            {
+                _staticLastFpsTimestamp = timestamp;
+            }
+
+            _staticFpsElapsed += (float)(timestamp - _staticLastFpsTimestamp) / System.Diagnostics.Stopwatch.Frequency;
+            _staticLastFpsTimestamp = timestamp;
+            _staticFpsFrameCount++;
+            if (_captureStarted)
+            {
+                _staticRenderedFramesSinceCapture++;
+            }
+            if (_staticFpsElapsed >= 0.25f)
+            {
+                _staticRenderFramesPerSecond = _staticFpsFrameCount / _staticFpsElapsed;
+                _staticFpsElapsed = 0f;
+                _staticFpsFrameCount = 0;
+                UpdateDiagnosticText();
+            }
         }
 
         // Updates the measured rate after one camera render completes.
@@ -531,17 +573,25 @@ namespace Landoria.UnityMediaRecorder.Example
                 ? 1000f / _renderFramesPerSecond
                 : 0f;
             float elapsed = _captureStarted ? Time.realtimeSinceStartup - _captureStartTime : 0f;
-            string backend = _recorder?.ActiveVideoBackendName ?? "Starting";
-            string diagnostics =
-                $"Render: {_renderFramesPerSecond:0.0} FPS  ({frameTimeMilliseconds:0.0} ms)\n" +
-                $"Capture: {_captureWidth}x{_captureHeight} @ {_targetFrameRate} FPS  |  MSAA: {_antiAliasingSamples}x\n" +
-                $"Backend: {backend}  |  VSync: {(QualitySettings.vSyncCount > 0 ? "On" : "Off")}\n" +
-                $"Elapsed: {elapsed:0.0} s  |  Rendered: {_renderedFramesSinceCapture}\n" +
+            string commonDiagnostics =
+                $"Capture: {_captureWidth}x{_captureHeight} @ 1 PNG/s  |  MSAA: {_antiAliasingSamples}x\n" +
+                $"VSync: {(QualitySettings.vSyncCount > 0 ? "On" : "Off")}  |  Elapsed: {elapsed:0.0} s\n" +
                 $"GPU: {SystemInfo.graphicsDeviceName}";
-            _fpsText.text = $"View: Main Camera\n{diagnostics}";
+            string mainDiagnostics =
+                $"Render: {_renderFramesPerSecond:0.0} FPS  ({frameTimeMilliseconds:0.0} ms)\n" +
+                $"Rendered: {_renderedFramesSinceCapture}\n" +
+                commonDiagnostics;
+            _fpsText.text = $"View: Main Camera\n{mainDiagnostics}";
             if (_staticFpsText != null)
             {
-                _staticFpsText.text = $"View: Static Camera\n{diagnostics}";
+                float staticFrameTimeMilliseconds = _staticRenderFramesPerSecond > 0f
+                    ? 1000f / _staticRenderFramesPerSecond
+                    : 0f;
+                string staticDiagnostics =
+                    $"Render: {_staticRenderFramesPerSecond:0.0} FPS  ({staticFrameTimeMilliseconds:0.0} ms)\n" +
+                    $"Rendered: {_staticRenderedFramesSinceCapture}\n" +
+                    commonDiagnostics;
+                _staticFpsText.text = $"View: Static Camera\n{staticDiagnostics}";
             }
         }
 
@@ -575,7 +625,6 @@ namespace Landoria.UnityMediaRecorder.Example
             _captureWidth = width;
             _captureHeight = height;
             _antiAliasingSamples = antiAliasingSamples;
-            _targetFrameRate = frameRate;
             string profileName = Environment.GetEnvironmentVariable("CAPTURE_PROFILE") ?? $"{width}x{height}_{frameRate}fps";
             string baseName = $"CubeOrbit_{profileName}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}";
             _preparedTarget = new RenderTexture(
@@ -597,29 +646,35 @@ namespace Landoria.UnityMediaRecorder.Example
             _camera.targetTexture = _preparedTarget;
             _overlayCamera.targetTexture = _preparedTarget;
             _staticCamera.targetTexture = _staticPreparedTarget;
-            RecordingSettings settings = CreateRecordingSettings(
-                directory,
-                $"{baseName}_MainCamera",
-                width,
-                height,
-                frameRate,
-                antiAliasingSamples);
-            RecordingSettings staticSettings = CreateRecordingSettings(
-                directory,
-                $"{baseName}_StaticCamera",
-                width,
-                height,
-                frameRate,
-                antiAliasingSamples);
-            _recorder.StartRecording(
+            if (!string.IsNullOrEmpty(_benchmarkMode))
+            {
+                yield return RunBenchmarkMode(
+                    directory,
+                    baseName,
+                    width,
+                    height,
+                    frameRate,
+                    antiAliasingSamples);
+                yield break;
+            }
+
+            _recorder.StartPngSequence(
                 _overlayCamera,
-                _camera.GetComponent<AudioListener>(),
-                settings,
+                CreatePngSequenceSettings(
+                    Path.Combine(directory, $"{baseName}_MainCamera_Frames"),
+                    width,
+                    height,
+                    antiAliasingSamples,
+                    0.0),
                 _preparedTarget);
-            _staticRecorder.StartRecording(
+            _staticRecorder.StartPngSequence(
                 _staticCamera,
-                _camera.GetComponent<AudioListener>(),
-                staticSettings,
+                CreatePngSequenceSettings(
+                    Path.Combine(directory, $"{baseName}_StaticCamera_Frames"),
+                    width,
+                    height,
+                    antiAliasingSamples,
+                    0.5),
                 _staticPreparedTarget);
             while (!_captureStarted)
             {
@@ -627,8 +682,81 @@ namespace Landoria.UnityMediaRecorder.Example
             }
 
             yield return new WaitForSecondsRealtime(CaptureDurationSeconds);
-            _recorder.StopRecording();
-            _staticRecorder.StopRecording();
+            _recorder.StopPngSequence();
+            _staticRecorder.StopPngSequence();
+        }
+
+        // Runs one controlled render or NVENC benchmark selected through the environment.
+        private IEnumerator RunBenchmarkMode(
+            string directory,
+            string baseName,
+            int width,
+            int height,
+            int frameRate,
+            int antiAliasingSamples)
+        {
+            bool singleCamera = string.Equals(_benchmarkMode, "single-render", StringComparison.OrdinalIgnoreCase);
+            bool useNvenc = _benchmarkMode.StartsWith("dual-nvenc", StringComparison.OrdinalIgnoreCase);
+            bool disableTemporal = string.Equals(
+                _benchmarkMode,
+                "dual-nvenc-no-temporal",
+                StringComparison.OrdinalIgnoreCase);
+            _staticCamera.enabled = !singleCamera;
+            if (disableTemporal)
+            {
+                _mainTemporalSmoothing.enabled = false;
+                _staticTemporalSmoothing.enabled = false;
+            }
+
+            if (useNvenc)
+            {
+                _recorder.StartRecording(
+                    _overlayCamera,
+                    _camera.GetComponent<AudioListener>(),
+                    CreateRecordingSettings(
+                        directory,
+                        $"{baseName}_{_benchmarkMode}_MainCamera",
+                        width,
+                        height,
+                        frameRate,
+                        antiAliasingSamples),
+                    _preparedTarget);
+                _staticRecorder.StartRecording(
+                    _staticCamera,
+                    _camera.GetComponent<AudioListener>(),
+                    CreateRecordingSettings(
+                        directory,
+                        $"{baseName}_{_benchmarkMode}_StaticCamera",
+                        width,
+                        height,
+                        frameRate,
+                        antiAliasingSamples),
+                    _staticPreparedTarget);
+                while (!_captureStarted)
+                {
+                    yield return null;
+                }
+            }
+            else
+            {
+                BeginMeasurement();
+            }
+
+            yield return new WaitForSecondsRealtime(CaptureDurationSeconds);
+            ReportBenchmarkMeasurement();
+            if (useNvenc)
+            {
+                _recorder.StopRecording();
+                _staticRecorder.StopRecording();
+            }
+            else
+            {
+                ReleasePreparedTarget();
+                if (!Application.isEditor)
+                {
+                    Application.Quit();
+                }
+            }
         }
 
         // Creates one independent output configuration for a synchronized camera recording.
@@ -646,14 +774,34 @@ namespace Landoria.UnityMediaRecorder.Example
                 TemporaryContainerPath = Path.Combine(directory, $"{baseName}.mkv.tmp"),
                 ArchivePath = Path.Combine(directory, $"{baseName}.mkv"),
                 KeepIntermediateFile = false,
-                GeneratePreviewImage = true,
-                PreviewImagePath = Path.Combine(directory, $"{baseName}.png"),
+                GeneratePreviewImage = false,
                 OutputPath = Path.Combine(directory, $"{baseName}.mp4"),
                 Width = width,
                 Height = height,
                 MaximumFrameRate = frameRate,
                 AntiAliasingSamples = antiAliasingSamples,
                 FlipVertically = SystemInfo.graphicsUVStartsAtTop
+            };
+        }
+
+        // Creates a one-image-per-second PNG sequence matching its associated video output.
+        private static PngSequenceSettings CreatePngSequenceSettings(
+            string outputDirectory,
+            int width,
+            int height,
+            int antiAliasingSamples,
+            double initialDelaySeconds)
+        {
+            return new PngSequenceSettings
+            {
+                OutputDirectory = outputDirectory,
+                FileNamePrefix = "frame_",
+                Width = width,
+                Height = height,
+                CapturesPerSecond = 1.0,
+                InitialDelaySeconds = initialDelaySeconds,
+                AntiAliasingSamples = antiAliasingSamples,
+                FlipVertically = false
             };
         }
 
@@ -673,11 +821,30 @@ namespace Landoria.UnityMediaRecorder.Example
                 return;
             }
 
+            BeginMeasurement();
+            Debug.Log("Cube orbit PNG capture started.");
+        }
+
+        // Resets both render counters and starts a common measurement interval.
+        private void BeginMeasurement()
+        {
             _captureStarted = true;
             _captureStartTime = Time.realtimeSinceStartup;
             _renderedFramesSinceCapture = 0;
+            _staticRenderedFramesSinceCapture = 0;
             UpdateDiagnosticText();
-            Debug.Log("Cube orbit recording started.");
+        }
+
+        // Writes the average render rate for the selected benchmark interval.
+        private void ReportBenchmarkMeasurement()
+        {
+            float elapsed = Math.Max(0.001f, Time.realtimeSinceStartup - _captureStartTime);
+            float mainAverageFps = _renderedFramesSinceCapture / elapsed;
+            float staticAverageFps = _staticRenderedFramesSinceCapture / elapsed;
+            Debug.Log(
+                $"CAPTURE_BENCHMARK mode={_benchmarkMode}; elapsed={elapsed:0.000}; " +
+                $"mainFps={mainAverageFps:0.00}; mainFrames={_renderedFramesSinceCapture}; " +
+                $"staticFps={staticAverageFps:0.00}; staticFrames={_staticRenderedFramesSinceCapture}");
         }
 
         // Reports the completed files produced on the Desktop.
@@ -689,7 +856,14 @@ namespace Landoria.UnityMediaRecorder.Example
                 return;
             }
 
-            Debug.Log("Cube orbit recording completed in Desktop/UnityMediaRecorderExample.");
+            float elapsed = Math.Max(0.001f, Time.realtimeSinceStartup - _captureStartTime);
+            float mainAverageFps = _renderedFramesSinceCapture / elapsed;
+            float staticAverageFps = _staticRenderedFramesSinceCapture / elapsed;
+            Debug.Log(
+                $"Unity render averages over {elapsed:0.000} s: " +
+                $"main camera={mainAverageFps:0.00} FPS ({_renderedFramesSinceCapture} frames), " +
+                $"static camera={staticAverageFps:0.00} FPS ({_staticRenderedFramesSinceCapture} frames).");
+            Debug.Log("Cube orbit PNG capture completed in Desktop/UnityMediaRecorderExample.");
             ReleasePreparedTarget();
             if (!Application.isEditor)
             {

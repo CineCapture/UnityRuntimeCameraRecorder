@@ -56,12 +56,14 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Capture\NativeVideoCapture.cs" />
+    <Compile Include="Capture\PngSequenceCapture.cs" />
     <Compile Include="Capture\UnityAudioCapture.cs" />
     <Compile Include="Capture\UnityVideoCapture.cs" />
     <Compile Include="Capture\VideoCaptureBackend.cs" />
     <Compile Include="Capture\VideoCaptureBackendRegistry.cs" />
     <Compile Include="Capture\VideoCaptureContext.cs" />
     <Compile Include="Pipeline\MediaRecorderLog.cs" />
+    <Compile Include="Pipeline\PngSequenceSettings.cs" />
     <Compile Include="Pipeline\RecordingSettings.cs" />
     <Compile Include="Pipeline\UnityMediaRecorder.cs" />
   </ItemGroup>

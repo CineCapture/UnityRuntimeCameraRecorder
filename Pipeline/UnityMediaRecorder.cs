@@ -20,6 +20,8 @@ namespace Landoria.UnityMediaRecorder
         private bool _videoCaptureStarted;
         private VideoStreamFormat _videoStreamFormat;
         private bool _writerStarted;
+        private PngSequenceCapture _pngSequenceCapture;
+        private int _lastCapturedPngFrameCount;
 
         public event Action CaptureStarted;
         public event Action CaptureStarting;
@@ -27,10 +29,11 @@ namespace Landoria.UnityMediaRecorder
         public event Action RecordingCompleted;
         public event Action<Exception> RecordingFailed;
 
-        public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes;
+        public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes || _pngSequenceCapture != null;
         public bool IsFinalizing => _writer?.IsFinalizing == true;
         public bool IsBusy => IsCapturing || IsFinalizing;
         public string ActiveVideoBackendName => _videoBackend?.Name;
+        public int CapturedPngFrameCount => _pngSequenceCapture?.CapturedFrameCount ?? _lastCapturedPngFrameCount;
 
         // Creates capture resources and begins one asynchronous recording session.
         public void StartRecording(
@@ -65,6 +68,45 @@ namespace Landoria.UnityMediaRecorder
                 ReleaseWriter();
                 throw;
             }
+        }
+
+        // Starts a camera-only PNG image sequence without FFmpeg, audio or a video encoder.
+        public void StartPngSequence(
+            Camera camera,
+            PngSequenceSettings settings,
+            RenderTexture preparedTarget = null)
+        {
+            if (IsBusy)
+            {
+                throw new InvalidOperationException("The media recorder is already busy.");
+            }
+
+            ValidatePngSequenceArguments(camera, settings);
+            try
+            {
+                _lastCapturedPngFrameCount = 0;
+                _pngSequenceCapture = gameObject.AddComponent<PngSequenceCapture>();
+                CaptureStarting?.Invoke();
+                _pngSequenceCapture.StartCapture(camera, settings, preparedTarget);
+                CaptureStarted?.Invoke();
+            }
+            catch
+            {
+                ReleasePngSequenceCapture();
+                throw;
+            }
+        }
+
+        // Stops the active PNG sequence and reports it as completed immediately.
+        public void StopPngSequence()
+        {
+            if (_pngSequenceCapture == null)
+            {
+                return;
+            }
+
+            ReleasePngSequenceCapture();
+            RecordingCompleted?.Invoke();
         }
 
         // Stops active capture and starts creation of the final MP4 file.
@@ -107,8 +149,23 @@ namespace Landoria.UnityMediaRecorder
             _waitingForAudio = false;
             _waitingForPipes = false;
             ReleaseCaptureProducers();
+            ReleasePngSequenceCapture();
             _writer?.Abort();
             ReleaseWriter();
+        }
+
+        // Stops and destroys the current PNG sequence capture component.
+        private void ReleasePngSequenceCapture()
+        {
+            if (_pngSequenceCapture == null)
+            {
+                return;
+            }
+
+            _lastCapturedPngFrameCount = _pngSequenceCapture.CapturedFrameCount;
+            _pngSequenceCapture.StopCapture();
+            Destroy(_pngSequenceCapture);
+            _pngSequenceCapture = null;
         }
 
         // Starts FFmpeg after Unity has reported the audio stream format.
@@ -323,6 +380,20 @@ namespace Landoria.UnityMediaRecorder
             if (settings.KeepIntermediateFile && string.IsNullOrWhiteSpace(settings.ArchivePath)) throw new ArgumentException("An archive path is required when keeping the intermediate file.", nameof(settings));
             if (settings.GeneratePreviewImage && string.IsNullOrWhiteSpace(settings.PreviewImagePath)) throw new ArgumentException("A preview image path is required when generating a preview image.", nameof(settings));
             if (string.IsNullOrWhiteSpace(settings.OutputPath)) throw new ArgumentException("An output path is required.", nameof(settings));
+        }
+
+        // Rejects missing or invalid PNG sequence arguments before resources are allocated.
+        private static void ValidatePngSequenceArguments(Camera camera, PngSequenceSettings settings)
+        {
+            if (camera == null) throw new ArgumentNullException(nameof(camera));
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            if (string.IsNullOrWhiteSpace(settings.OutputDirectory)) throw new ArgumentException("An output directory is required.", nameof(settings));
+            if (string.IsNullOrWhiteSpace(settings.FileNamePrefix)) throw new ArgumentException("A file name prefix is required.", nameof(settings));
+            if (settings.FileNamePrefix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) throw new ArgumentException("The file name prefix contains invalid characters.", nameof(settings));
+            if (settings.Width < 2 || settings.Height < 2) throw new ArgumentOutOfRangeException(nameof(settings));
+            if (double.IsNaN(settings.CapturesPerSecond) || double.IsInfinity(settings.CapturesPerSecond) || settings.CapturesPerSecond <= 0.0) throw new ArgumentOutOfRangeException(nameof(settings));
+            if (double.IsNaN(settings.InitialDelaySeconds) || double.IsInfinity(settings.InitialDelaySeconds) || settings.InitialDelaySeconds < 0.0) throw new ArgumentOutOfRangeException(nameof(settings));
+            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8) throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
         }
     }
 }

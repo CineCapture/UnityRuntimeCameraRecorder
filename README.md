@@ -18,6 +18,28 @@ Set `AntiAliasingSamples` to `1`, `2`, `4` or `8`. Multisampled camera output is
 
 The main public API is `UnityMediaRecorder`, `RecordingSettings` and `MediaRecorderLog`. Pipes and FFmpeg processes remain internal.
 
+## PNG image sequences
+
+Use `StartPngSequence` when individual lossless frames are needed instead of a video. The capture frequency can be lower or higher than one image per second and follows a wall-clock schedule, capped by the rate at which Unity renders frames. Stop the sequence with `StopPngSequence`.
+
+```csharp
+recorder.StartPngSequence(camera, new PngSequenceSettings
+{
+    OutputDirectory = @"C:\Captures\Sequence",
+    FileNamePrefix = "frame_",
+    Width = 3840,
+    Height = 2160,
+    CapturesPerSecond = 2.0,
+    InitialDelaySeconds = 0.0,
+    AntiAliasingSamples = 4
+});
+
+// Later: writes no more images and raises RecordingCompleted.
+recorder.StopPngSequence();
+```
+
+Files are named `frame_000000.png`, `frame_000001.png`, and so on. GPU readback is asynchronous, while PNG compression and disk writes run on a bounded background queue. `InitialDelaySeconds` can stagger several cameras so they do not request readback in the same rendered frame. This mode captures no audio and requires neither FFmpeg nor NVENC.
+
 ## Video backends
 
 Video capture and encoding are replaceable through `VideoCaptureBackend`. A backend declares whether it sends raw RGBA, H.264 or HEVC data, receives an immutable `VideoCaptureContext`, and writes frames or timestamped encoded packets through that context. It never accesses the recorder's pipes or FFmpeg process directly.
