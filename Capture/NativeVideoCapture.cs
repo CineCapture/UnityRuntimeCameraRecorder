@@ -32,7 +32,8 @@ namespace UnityMediaRecorder
         private string _diagnosticsJson;
         public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
-        public override VideoStreamFormat StreamFormat => VideoStreamFormat.H264;
+        public override VideoStreamFormat StreamFormat => Environment.GetEnvironmentVariable("DIRECT3D_NVENC_HEVC") == "1"
+            ? VideoStreamFormat.Hevc : VideoStreamFormat.H264;
 
         // Returns whether the native DLL and its render callback can be loaded.
         internal static bool IsAvailable()
