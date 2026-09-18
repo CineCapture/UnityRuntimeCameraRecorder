@@ -2,6 +2,8 @@
 
 Record a Unity camera, or the application's displayed view, with audio. Each recorder creates one MP4. The caller controls the camera, buttons, paths and recording duration.
 
+Audio is encoded as AAC at 128 or 192 kbit/s according to the quality profile, without applying gain or fades to the captured audio.
+
 ## Requirements
 
 The DLL targets .NET Standard 2.1 for compatible Unity runtimes on Windows, Linux and macOS. Unity 6's referenced assemblies require 2.1. PNG capture uses Unity's GPU readback APIs and requires a graphics device supporting asynchronous readback. Linux/macOS execution has not yet been tested.
@@ -34,7 +36,7 @@ recorder.StartRecording(camera, listener, new RecordingSettings
     Height = 2160,
     MaximumFrameRate = 60,
     AntiAliasingSamples = 4,
-    NativeEncodingPreset = 5,
+    QualityPreset = RecordingQualityPreset.High,
     VideoStreamFormat = VideoStreamFormat.Hevc,
     FlipVertically = SystemInfo.graphicsUVStartsAtTop
 });
@@ -80,3 +82,19 @@ Build with the .NET 10 SDK: `dotnet build UnityMediaRecorder.csproj -c Release -
 To add a video engine, implement `VideoCaptureBackend`, validate codec selection in `ConfigureStreamFormat` and register a factory with `VideoCaptureBackendRegistry.Register`. Write packets through `VideoCaptureContext.WritePacket`, not directly to FFmpeg. No software encoding fallback is included.
 
 See [UnitySample](https://github.com/end3rbyte/UnitySample) for an editable scene. Our code uses the [MIT license](LICENSE); third-party licenses and codec patent rights are separate.
+
+## Automatic SDR quality profiles
+
+`RecordingSettings.QualityPreset` accepts only `Low`, `Medium` or `High` (default). Video and audio settings are derived internally; no manual NVENC preset is exposed.
+
+| Profile | Base video QP (CQP) | Audio |
+|---|---:|---|
+| Low | 27 | AAC 128 kbit/s |
+| Medium | 23 | AAC 192 kbit/s |
+| High (default) | 16 | AAC 192 kbit/s |
+
+H.264 is the default. Audio is 48000 Hz stereo. For any supported positive even resolution, effective QP is `clamp(baseQP - floor((1 - min(2000, sqrt(width*width + height*height))/2000)*10), 1, 51)`. FPS remains independent; CQP has no target video bitrate.
+
+**HDR is not supported today:** `CaptureHdr = true` is rejected. HEVC SDR is locally checked on RTX 5060 for all 3 qualities at 4K/60 FPS, including a 120 s High capture under load; other HEVC configurations remain to be validated. See [Direct3DVideoEncoder NVENC settings](https://github.com/end3rbyte/Direct3DVideoEncoder#sdr-constant-qp-quality-entry-point) for GPU capability handling and effective native parameters. Matching managed/native DLLs are required.
+
+Sources: [OBS quality mapping](https://github.com/obsproject/obs-studio/blob/master/frontend/utility/SimpleOutput.cpp) for Medium/High QP and resolution correction; [NVIDIA NVENC guide](https://docs.nvidia.com/video-technologies/video-codec-sdk/13.1/nvenc-video-encoder-api-prog-guide/index.html) for encoder controls. [NVIDIA App documentation](https://nvidia.custhelp.com/app/answers/detail/a_id/5713) describes its VBR behavior, not our CQP profiles. Low QP 27 and the audio mapping are project choices, not externally specified presets.

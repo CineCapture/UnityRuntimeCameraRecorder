@@ -16,9 +16,10 @@ namespace UnityMediaRecorder
         public int Height { get; set; }
         public int MaximumFrameRate { get; set; } = 60;
         public int AntiAliasingSamples { get; set; } = 1;
-        public VideoEncodingQuality EncodingQuality { get; set; } = VideoEncodingQuality.Highest;
-        public int NativeEncodingPreset { get; set; } // Zero retains the quality-based default; NVENC accepts 1–7.
+        public RecordingQualityPreset QualityPreset { get; set; } = RecordingQualityPreset.High;
         public VideoStreamFormat VideoStreamFormat { get; set; } = VideoStreamFormat.H264;
+        // HDR sources are explicitly unsupported by the SDR profile.
+        public bool CaptureHdr { get; set; }
         public bool FlipVertically { get; set; }
         public bool CaptureScreen { get; set; }
     }

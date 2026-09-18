@@ -88,7 +88,7 @@ namespace UnityMediaRecorder
             _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve || needsResize;
             _packetCallback = ReceivePacket;
             _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
-            _sessionId = Direct3DVideoEncoderStartWithCodec(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, context.NativeEncodingPreset == 0 ? (context.EncodingQuality == VideoEncodingQuality.Balanced ? 4 : 5) : context.NativeEncodingPreset, (int)_streamFormat, _packetCallback);
+            _sessionId = Direct3DVideoEncoderStartWithConstantQP(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, (int)_streamFormat, context.QualityProfile.QuantizationParameter, _packetCallback);
             if (_sessionId == 0)
             {
                 throw new InvalidOperationException(GetNativeError(0));
@@ -267,7 +267,7 @@ namespace UnityMediaRecorder
 
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Initializes the native encoder for a Unity texture.
-        private static extern int Direct3DVideoEncoderStartWithCodec(IntPtr texture, int width, int height, int frameRate, int preset, int codec, PacketCallback callback);
+        private static extern int Direct3DVideoEncoderStartWithConstantQP(IntPtr texture, int width, int height, int frameRate, int codec, int quantizationParameter, PacketCallback callback);
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Queues a texture for processing by the Unity render thread callback.
         private static extern void Direct3DVideoEncoderQueueTexture(int sessionId, IntPtr texture, long timestampMicroseconds);

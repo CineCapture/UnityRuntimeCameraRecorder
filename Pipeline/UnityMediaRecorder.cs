@@ -14,6 +14,7 @@ namespace UnityMediaRecorder
         private Camera _camera;
         private AudioListener _listener;
         private RecordingSettings _settings;
+        private RecordingQualityProfile _qualityProfile;
         private RenderTexture _preparedVideoTarget;
         private bool _waitingForAudio;
         private bool _waitingForPipes;
@@ -44,9 +45,11 @@ namespace UnityMediaRecorder
             }
 
             ValidateArguments(camera, listener, settings);
+            if (settings.CaptureHdr) throw new NotSupportedException("HDR recording is not supported by the SDR quality profile.");
             LastVideoDiagnosticsJson = null;
             _camera = camera;
             _listener = listener;
+            _qualityProfile = RecordingQualityProfile.FromPreset(settings.QualityPreset, settings.Width, settings.Height, settings.MaximumFrameRate);
             _settings = settings;
             _preparedVideoTarget = preparedVideoTarget;
             try
@@ -169,7 +172,7 @@ namespace UnityMediaRecorder
             _waitingForAudio = false;
             try
             {
-                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, ArchivePath = _settings.ArchivePath, KeepIntermediateFile = _settings.KeepIntermediateFile, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, Warning = MediaRecorderLog.WriteWarning, Error = MediaRecorderLog.WriteError });
+                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, ArchivePath = _settings.ArchivePath, KeepIntermediateFile = _settings.KeepIntermediateFile, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, EncodedVideoHasPresentationTimestamps = true, AudioCodec = AudioEncodingCodec.Aac, AudioBitRate = _qualityProfile.AudioBitRate, OutputAudioSampleRate = _qualityProfile.AudioSampleRate, OutputAudioChannels = _qualityProfile.AudioChannels, Warning = MediaRecorderLog.WriteWarning, Error = MediaRecorderLog.WriteError });
                 _writerStarted = true;
                 _waitingForPipes = true;
             }
@@ -207,7 +210,7 @@ namespace UnityMediaRecorder
         // Starts the selected backend that produces encoded video packets.
         private void StartVideoCapture()
         {
-            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _settings.EncodingQuality, _settings.NativeEncodingPreset, _settings.FlipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
+            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _settings.FlipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _videoCaptureStarted = true;
         }
