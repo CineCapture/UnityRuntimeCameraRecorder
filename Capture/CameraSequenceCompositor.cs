@@ -11,9 +11,6 @@ namespace UnityMediaRecorder
         private readonly IReadOnlyList<VideoSequenceSource> _sources;
         private readonly System.Random _random;
         private readonly List<int> _randomOrder = new List<int>();
-        private readonly List<CameraState> _cameraStates = new List<CameraState>();
-        private readonly RenderTexture _firstTarget;
-        private readonly RenderTexture _secondTarget;
         private readonly RenderTexture _firstResolved;
         private readonly RenderTexture _secondResolved;
         private readonly Material _crossFadeMaterial;
@@ -24,11 +21,12 @@ namespace UnityMediaRecorder
         private float _transitionStartTime;
         private CameraSequenceTransition _activeTransition;
 
-        // Preserves camera state and allocates reusable render targets.
-        internal CameraSequenceCompositor(CameraSequenceSettings settings, int width, int height, int antiAliasingSamples, bool flipVertically, float startTime)
+        // Resolves source descriptors and allocates reusable render targets.
+        internal CameraSequenceCompositor(CameraSequenceSettings settings, int width, int height, bool flipVertically, float startTime)
         {
             _settings = settings;
             _sources = CreateSources(settings);
+            ValidateCameraSources();
             _preFlipScreen = flipVertically;
             _random = settings.RandomSeed.HasValue ? new System.Random(settings.RandomSeed.Value) : new System.Random();
             Shader crossFadeShader = Shader.Find("UnityMediaRecorder/CrossFade");
@@ -38,17 +36,7 @@ namespace UnityMediaRecorder
             }
 
             _crossFadeMaterial = new Material(crossFadeShader) { hideFlags = HideFlags.HideAndDontSave };
-            foreach (VideoSequenceSource source in _sources)
-            {
-                if (source.Kind == VideoSequenceSource.SourceKind.Camera)
-                {
-                    _cameraStates.Add(new CameraState(source.Camera));
-                    source.Camera.enabled = false;
-                }
-            }
             _currentIndex = settings.Order == CameraSequenceOrder.Random ? _random.Next(SourceCount) : 0;
-            _firstTarget = CreateTarget(width, height, antiAliasingSamples);
-            _secondTarget = CreateTarget(width, height, antiAliasingSamples);
             _firstResolved = CreateTarget(width, height, 1);
             _secondResolved = CreateTarget(width, height, 1);
             _shotEndTime = startTime + NextShotDuration();
@@ -67,8 +55,7 @@ namespace UnityMediaRecorder
                     CompleteTransition(time);
                 }
             }
-            WarmInactiveCameras();
-            RenderSource(_currentIndex, screen, _firstTarget, _firstResolved);
+            RenderSource(_currentIndex, screen, _firstResolved);
             Graphics.Blit(_firstResolved, output);
             if (_nextIndex < 0)
             {
@@ -76,7 +63,7 @@ namespace UnityMediaRecorder
             }
             float duration = Math.Max(0.001f, _settings.CrossFadeDurationSeconds);
             float opacity = Mathf.Clamp01((time - _transitionStartTime) / duration);
-            RenderSource(_nextIndex, screen, _secondTarget, _secondResolved);
+            RenderSource(_nextIndex, screen, _secondResolved);
             if (opacity >= 1f)
             {
                 Graphics.Blit(_secondResolved, output);
@@ -87,53 +74,24 @@ namespace UnityMediaRecorder
             DrawCrossFade(output, _firstResolved, _secondResolved, opacity);
         }
 
-        // Keeps temporal post-processing histories current for cameras between visible shots.
-        private void WarmInactiveCameras()
-        {
-            for (int index = 0; index < _sources.Count; index++)
-            {
-                VideoSequenceSource source = _sources[index];
-                if (index != _currentIndex && index != _nextIndex && source.Kind == VideoSequenceSource.SourceKind.Camera)
-                {
-                    RenderCamera(source.Camera, _secondTarget, _secondResolved);
-                }
-            }
-        }
-
         internal bool RequiresScreen { get; private set; }
         private int SourceCount => _sources.Count;
 
-        // Restores every source camera and releases owned render textures.
+        // Releases the compositor's materials and render textures.
         public void Dispose()
         {
-            foreach (CameraState state in _cameraStates)
-            {
-                state.Restore();
-            }
-            Release(_firstTarget);
-            Release(_secondTarget);
             Release(_firstResolved);
             Release(_secondResolved);
             UnityEngine.Object.Destroy(_crossFadeMaterial);
         }
 
-        // Renders one source camera and resolves MSAA into a sampleable texture.
-        private static void RenderCamera(Camera camera, RenderTexture target, RenderTexture resolved)
-        {
-            RenderTexture previous = camera.targetTexture;
-            camera.targetTexture = target;
-            camera.Render();
-            camera.targetTexture = previous;
-            Graphics.Blit(target, resolved);
-        }
-
         // Renders either a Unity camera or the captured application screen.
-        private void RenderSource(int index, RenderTexture screen, RenderTexture target, RenderTexture resolved)
+        private void RenderSource(int index, RenderTexture screen, RenderTexture resolved)
         {
             VideoSequenceSource source = _sources[index];
             if (source.Kind == VideoSequenceSource.SourceKind.Camera)
             {
-                RenderCamera(source.Camera, target, resolved);
+                Graphics.Blit(source.Camera.targetTexture, resolved);
                 return;
             }
             if (source.Kind == VideoSequenceSource.SourceKind.Texture)
@@ -152,6 +110,28 @@ namespace UnityMediaRecorder
             else
             {
                 Graphics.Blit(screen, resolved);
+            }
+        }
+
+        // Rejects camera sources that cannot provide a completed live GPU frame.
+        private void ValidateCameraSources()
+        {
+            foreach (VideoSequenceSource source in _sources)
+            {
+                if (source.Kind != VideoSequenceSource.SourceKind.Camera)
+                {
+                    continue;
+                }
+
+                if (!source.Camera.enabled)
+                {
+                    throw new InvalidOperationException($"Sequence camera '{source.Camera.name}' must be enabled.");
+                }
+
+                if (source.Camera.targetTexture == null)
+                {
+                    throw new InvalidOperationException($"Sequence camera '{source.Camera.name}' must have a target texture.");
+                }
             }
         }
 
@@ -264,27 +244,5 @@ namespace UnityMediaRecorder
             UnityEngine.Object.Destroy(target);
         }
 
-        // Preserves the mutable fields changed for manual camera rendering.
-        private readonly struct CameraState
-        {
-            private readonly Camera _camera;
-            private readonly bool _enabled;
-            private readonly RenderTexture _target;
-
-            // Captures the original state of one source camera.
-            internal CameraState(Camera camera)
-            {
-                _camera = camera;
-                _enabled = camera.enabled;
-                _target = camera.targetTexture;
-            }
-
-            // Restores the original state of one source camera.
-            internal void Restore()
-            {
-                _camera.enabled = _enabled;
-                _camera.targetTexture = _target;
-            }
-        }
     }
 }

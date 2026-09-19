@@ -84,7 +84,7 @@ var sequence = new CameraSequenceSettings
 recorder.StartRecording(sequence, listener, recordingSettings);
 ```
 
-The crossfade duration defaults to half a second. `NoTransition` performs an immediate cut. When several transition types are allowed, one is selected for each source change. A screen source adds the completed player frame, UI and cursor. A texture source reads its current GPU content without an extra encoder. Camera frames remain warm between visible shots so temporal post-processing does not resume from stale history. During a crossfade, the outgoing and incoming sources are blended on the GPU with complementary opacity.
+The crossfade duration defaults to half a second. `NoTransition` performs an immediate cut. When several transition types are allowed, one is selected for each source change. A screen source adds the completed player frame, UI and cursor. A texture source reads its current GPU content without an extra encoder. Camera sources must be enabled and have a target texture. The recorder reads their completed GPU frames without changing their live rendering, previews or temporal effects. Invalid camera sources fail when capture starts. During a crossfade, the outgoing and incoming sources are blended on the GPU with complementary opacity.
 
 The legacy `Cameras` and `IncludeScreen` fields remain supported. Use `Sources` for new integrations that mix cameras, the player screen and render textures.
 

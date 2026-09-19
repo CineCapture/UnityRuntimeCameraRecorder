@@ -103,7 +103,7 @@ namespace UnityMediaRecorder
             _previousEnabled = _camera != null && _camera.enabled;
             if (context.CameraSequence != null)
             {
-                _cameraSequenceCompositor = new CameraSequenceCompositor(context.CameraSequence, context.Width, context.Height, context.AntiAliasingSamples, context.FlipVertically, Time.realtimeSinceStartup);
+                _cameraSequenceCompositor = new CameraSequenceCompositor(context.CameraSequence, context.Width, context.Height, context.FlipVertically, Time.realtimeSinceStartup);
             }
             else if (!context.CaptureScreen)
             {
