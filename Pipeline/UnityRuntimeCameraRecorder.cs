@@ -471,6 +471,26 @@ namespace UnityRuntimeCameraRecorder
             {
                 throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
             }
+
+            if (settings.EncoderThreadCount < 1 || settings.EncoderThreadCount > 16)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "PNG encoder thread count must be between 1 and 16.");
+            }
+
+            if (settings.MaximumQueuedFrames < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "Maximum queued PNG frames must be positive.");
+            }
+
+            if (settings.MaximumFrameCount < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "Maximum image frame count cannot be negative.");
+            }
+
+            if (settings.JpegQuality < 1 || settings.JpegQuality > 100)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings), "JPEG quality must be between 1 and 100.");
+            }
         }
     }
 }

@@ -267,9 +267,16 @@ recorder.StartPngSequence(camera, new PngSequenceSettings
     CapturesPerSecond = 2,
     InitialDelaySeconds = 1,
     AntiAliasingSamples = 4,
+    EncoderThreadCount = 4,
+    MaximumQueuedFrames = 16,
+    MaximumFrameCount = 0,
+    FileFormat = ImageSequenceFormat.Jpeg,
+    JpegQuality = 95,
     FlipVertically = false
 });
 ```
+
+Increase `EncoderThreadCount` and `MaximumQueuedFrames` for short, high-rate exports. Queued 4K RGBA frames use about 32 MB each.
 
 Stop it and inspect the resulting frame count:
 

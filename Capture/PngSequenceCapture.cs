@@ -4,8 +4,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace UnityRuntimeCameraRecorder
@@ -13,8 +15,6 @@ namespace UnityRuntimeCameraRecorder
     // Captures a Unity camera as a numbered PNG image sequence without blocking the render loop.
     internal sealed class PngSequenceCapture : MonoBehaviour
     {
-        private const int MaximumPendingReadbacks = 2;
-        private const int MaximumQueuedFrames = 4;
         private Camera _camera;
         private PngSequenceSettings _settings;
         private RenderTexture _source;
@@ -22,7 +22,7 @@ namespace UnityRuntimeCameraRecorder
         private RenderTexture _previousTarget;
         private Coroutine _captureRoutine;
         private BlockingCollection<PngFrame> _frames;
-        private Task _writerTask;
+        private Task[] _writerTasks;
         private Exception _writerException;
         private long _captureIntervalTicks;
         private long _nextCaptureTimestamp;
@@ -51,8 +51,12 @@ namespace UnityRuntimeCameraRecorder
             _readbackTarget = requiresReadbackTarget ? CreateTarget(settings.Width, settings.Height, 1) : _source;
             _ownsReadbackTarget = requiresReadbackTarget;
 
-            _frames = new BlockingCollection<PngFrame>(MaximumQueuedFrames);
-            _writerTask = Task.Run(WriteFrames);
+            _frames = new BlockingCollection<PngFrame>(settings.MaximumQueuedFrames);
+            _writerTasks = new Task[settings.EncoderThreadCount];
+            for (int index = 0; index < _writerTasks.Length; index++)
+            {
+                _writerTasks[index] = Task.Run(WriteFrames);
+            }
             _captureIntervalTicks = Math.Max(1L, (long)(Stopwatch.Frequency / settings.CapturesPerSecond));
             _nextCaptureTimestamp = Stopwatch.GetTimestamp() +
                 (long)(Stopwatch.Frequency * settings.InitialDelaySeconds);
@@ -83,11 +87,14 @@ namespace UnityRuntimeCameraRecorder
 
             AsyncGPUReadback.WaitAllRequests();
             _frames?.CompleteAdding();
-            _writerTask?.Wait();
+            if (_writerTasks != null)
+            {
+                Task.WaitAll(_writerTasks);
+            }
             RestoreCameraAndReleaseTargets();
             _frames?.Dispose();
             _frames = null;
-            _writerTask = null;
+            _writerTasks = null;
 
             RecorderLog.WriteInfo(
                 $"PNG sequence capture stopped: written={_capturedFrameCount}, dropped={_droppedFrameCount}.");
@@ -123,7 +130,17 @@ namespace UnityRuntimeCameraRecorder
                     continue;
                 }
 
-                ScheduleReadback(_nextFrameNumber++);
+                if (_settings.MaximumFrameCount > 0 && _nextFrameNumber >= _settings.MaximumFrameCount)
+                {
+                    continue;
+                }
+
+                if (!ScheduleReadback(_nextFrameNumber))
+                {
+                    continue;
+                }
+
+                _nextFrameNumber++;
                 _nextCaptureTimestamp += _captureIntervalTicks;
                 if (_nextCaptureTimestamp < timestamp)
                 {
@@ -133,12 +150,13 @@ namespace UnityRuntimeCameraRecorder
         }
 
         // Resolves the rendered image and schedules a non-blocking GPU readback.
-        private void ScheduleReadback(int frameNumber)
+        private bool ScheduleReadback(int frameNumber)
         {
-            if (_pendingReadbacks >= MaximumPendingReadbacks || _frames.Count >= MaximumQueuedFrames)
+            int maximumPendingReadbacks = Math.Min(16, Math.Max(2, _settings.EncoderThreadCount * 2));
+            if (_pendingReadbacks >= maximumPendingReadbacks || _frames.Count >= _settings.MaximumQueuedFrames)
             {
                 _droppedFrameCount++;
-                return;
+                return false;
             }
 
             if (_readbackTarget != _source)
@@ -159,6 +177,7 @@ namespace UnityRuntimeCameraRecorder
                 0,
                 TextureFormat.RGBA32,
                 request => CompleteReadback(request, frameNumber));
+            return true;
         }
 
         // Copies a completed readback into the bounded background-writer queue.
@@ -188,21 +207,35 @@ namespace UnityRuntimeCameraRecorder
             {
                 foreach (PngFrame frame in _frames.GetConsumingEnumerable())
                 {
-                    string path = Path.Combine(
-                        _settings.OutputDirectory,
-                        $"{_settings.FileNamePrefix}{frame.Number:D6}.png");
-                    FastPngEncoder.WriteRgba32(path, frame.Pixels, _settings.Width, _settings.Height);
-                    _capturedFrameCount++;
+                    WriteFrame(frame);
+                    Interlocked.Increment(ref _capturedFrameCount);
                 }
             }
             catch (Exception exception)
             {
-                _writerException = exception;
-                while (_frames.TryTake(out _))
-                {
-                    _droppedFrameCount++;
-                }
+                Interlocked.CompareExchange(ref _writerException, exception, null);
             }
+        }
+
+        // Encodes one queued frame in the configured image format.
+        private void WriteFrame(PngFrame frame)
+        {
+            string extension = _settings.FileFormat == ImageSequenceFormat.Jpeg ? "jpg" : "png";
+            string path = Path.Combine(_settings.OutputDirectory, $"{_settings.FileNamePrefix}{frame.Number:D6}.{extension}");
+            if (_settings.FileFormat == ImageSequenceFormat.Png)
+            {
+                FastPngEncoder.WriteRgba32(path, frame.Pixels, _settings.Width, _settings.Height);
+                return;
+            }
+
+            byte[] encoded = ImageConversion.EncodeArrayToJPG(
+                frame.Pixels,
+                GraphicsFormat.R8G8B8A8_SRGB,
+                (uint)_settings.Width,
+                (uint)_settings.Height,
+                0,
+                _settings.JpegQuality);
+            File.WriteAllBytes(path, encoded);
         }
 
         // Restores the camera state and releases render targets owned by this capture.
