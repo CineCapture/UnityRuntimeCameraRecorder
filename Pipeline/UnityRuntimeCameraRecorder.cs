@@ -20,8 +20,8 @@ namespace UnityRuntimeCameraRecorder
         private bool _videoCaptureStarted;
         private VideoStreamFormat _videoStreamFormat;
         private bool _writerStarted;
-        private PngSequenceCapture _pngSequenceCapture;
-        private int _lastCapturedPngFrameCount;
+        private ImageSequenceCapture _imageSequenceCapture;
+        private int _lastCapturedImageFrameCount;
         private float _captureStartTime;
         private float _captureDuration;
         private Task _statisticsTask;
@@ -31,13 +31,13 @@ namespace UnityRuntimeCameraRecorder
         public event Action FinalizationStarted;
         public event Action RecordingCompleted;
         public event Action<Exception> RecordingFailed;
-        public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes || _pngSequenceCapture != null;
+        public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes || _imageSequenceCapture != null;
         public bool IsFinalizing => _writer?.IsFinalizing == true;
         public bool IsBusy => IsCapturing || IsFinalizing || _statisticsTask != null;
         public string ActiveVideoBackendName => _videoBackend?.Name;
         // Retains optional backend telemetry after capture resources have been released.
         public string LastVideoDiagnosticsJson { get; private set; }
-        public int CapturedPngFrameCount => _pngSequenceCapture?.CapturedFrameCount ?? _lastCapturedPngFrameCount;
+        public int CapturedImageFrameCount => _imageSequenceCapture?.CapturedFrameCount ?? _lastCapturedImageFrameCount;
 
         // Starts one output from one or more explicit video sources.
         public void StartRecording(VideoSequenceSettings sequence, AudioListener listener, RecordingSettings settings)
@@ -82,39 +82,39 @@ namespace UnityRuntimeCameraRecorder
             }
         }
 
-        // Starts a camera-only PNG image sequence without FFmpeg, audio or a video encoder.
-        public void StartPngSequence(Camera camera, ImageSequenceSettings settings, RenderTexture preparedTarget = null)
+        // Starts a camera-only image sequence without FFmpeg, audio or a video encoder.
+        public void StartImageSequence(Camera camera, ImageSequenceSettings settings, RenderTexture preparedTarget = null)
         {
             if (IsBusy)
             {
                 throw new InvalidOperationException("The media recorder is already busy.");
             }
 
-            ValidatePngSequenceArguments(camera, settings);
+            ValidateImageSequenceArguments(camera, settings);
             try
             {
-                _lastCapturedPngFrameCount = 0;
-                _pngSequenceCapture = gameObject.AddComponent<PngSequenceCapture>();
+                _lastCapturedImageFrameCount = 0;
+                _imageSequenceCapture = gameObject.AddComponent<ImageSequenceCapture>();
                 CaptureStarting?.Invoke();
-                _pngSequenceCapture.StartCapture(camera, settings, preparedTarget);
+                _imageSequenceCapture.StartCapture(camera, settings, preparedTarget);
                 CaptureStarted?.Invoke();
             }
             catch
             {
-                ReleasePngSequenceCapture();
+                ReleaseImageSequenceCapture();
                 throw;
             }
         }
 
-        // Stops the active PNG sequence and reports it as completed immediately.
-        public void StopPngSequence()
+        // Stops the active image sequence and reports it as completed immediately.
+        public void StopImageSequence()
         {
-            if (_pngSequenceCapture == null)
+            if (_imageSequenceCapture == null)
             {
                 return;
             }
 
-            ReleasePngSequenceCapture();
+            ReleaseImageSequenceCapture();
             RecordingCompleted?.Invoke();
         }
 
@@ -162,23 +162,23 @@ namespace UnityRuntimeCameraRecorder
             _waitingForAudio = false;
             _waitingForPipes = false;
             ReleaseCaptureProducers();
-            ReleasePngSequenceCapture();
+            ReleaseImageSequenceCapture();
             _writer?.Abort();
             ReleaseWriter();
         }
 
-        // Stops and destroys the current PNG sequence capture component.
-        private void ReleasePngSequenceCapture()
+        // Stops and destroys the current image sequence capture component.
+        private void ReleaseImageSequenceCapture()
         {
-            if (_pngSequenceCapture == null)
+            if (_imageSequenceCapture == null)
             {
                 return;
             }
 
-            _lastCapturedPngFrameCount = _pngSequenceCapture.CapturedFrameCount;
-            _pngSequenceCapture.StopCapture();
-            Destroy(_pngSequenceCapture);
-            _pngSequenceCapture = null;
+            _lastCapturedImageFrameCount = _imageSequenceCapture.CapturedFrameCount;
+            _imageSequenceCapture.StopCapture();
+            Destroy(_imageSequenceCapture);
+            _imageSequenceCapture = null;
         }
 
         // Starts FFmpeg after Unity has reported the audio stream format.
@@ -427,8 +427,8 @@ namespace UnityRuntimeCameraRecorder
             }
         }
 
-        // Rejects missing or invalid PNG sequence arguments before resources are allocated.
-        private static void ValidatePngSequenceArguments(Camera camera, ImageSequenceSettings settings)
+        // Rejects missing or invalid image sequence arguments before resources are allocated.
+        private static void ValidateImageSequenceArguments(Camera camera, ImageSequenceSettings settings)
         {
             if (camera == null)
             {
@@ -477,12 +477,12 @@ namespace UnityRuntimeCameraRecorder
 
             if (settings.EncoderThreadCount < 1 || settings.EncoderThreadCount > 16)
             {
-                throw new ArgumentOutOfRangeException(nameof(settings), "PNG encoder thread count must be between 1 and 16.");
+                throw new ArgumentOutOfRangeException(nameof(settings), "Image encoder thread count must be between 1 and 16.");
             }
 
             if (settings.MaximumQueuedFrames < 1)
             {
-                throw new ArgumentOutOfRangeException(nameof(settings), "Maximum queued PNG frames must be positive.");
+                throw new ArgumentOutOfRangeException(nameof(settings), "Maximum queued image frames must be positive.");
             }
 
             if (settings.MaximumFrameCount < 0)

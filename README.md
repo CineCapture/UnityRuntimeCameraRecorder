@@ -16,8 +16,15 @@ Add these runtime files to the Unity project:
 - `UnityRuntimeCameraRecorder.dll`
 - [FFmpegMediaWriter.dll](https://github.com/UnityRuntimeCameraRecorder/FFmpegMediaWriter)
 - [Direct3DVideoEncoder.dll](https://github.com/UnityRuntimeCameraRecorder/Direct3DVideoEncoder)
+- the recorder's `Resources` directory
 
-Add `Resources/UnityRuntimeCameraRecorderCrossFade.shader` only when a multi-source sequence can use `CrossFade`. It is optional for one source and `NoTransition` sequences.
+The recorder package includes its crossfade shader. Applications do not need to supply or maintain it.
+
+Build the Unity-ready archive with:
+
+```bash
+dotnet msbuild UnityRuntimeCameraRecorder.csproj -t:Package -p:Configuration=Release -p:UnityManagedPath="path/to/Unity/Editor/Data/Managed/UnityEngine"
+```
 
 ## Minimal example
 
@@ -64,7 +71,7 @@ Camera sources must remain enabled and have a valid `targetTexture`. Keep all so
 - H.264 and HEVC through NVIDIA NVENC
 - Unity audio encoded as stereo AAC
 - Optional asynchronous statistics generation
-- PNG image-sequence capture without FFmpeg or NVENC
+- PNG or JPEG image-sequence capture without FFmpeg or NVENC
 - Explicit lifecycle events, diagnostics and logging callbacks
 
 ## Quality profiles

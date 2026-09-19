@@ -17,8 +17,9 @@ static void Invalid(Action action)
     {
         action();
     }
-    catch (ArgumentException)
+    catch (ArgumentException exception)
     {
+        Console.Error.WriteLine("Expected invalid-input exception: " + exception.Message);
         return;
     }
 

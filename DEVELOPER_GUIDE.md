@@ -11,7 +11,9 @@ Add these files to the Unity project:
 - `UnityRuntimeCameraRecorder.dll`
 - `Direct3DVideoEncoder.dll`
 - `FFmpegMediaWriter.dll`
-- `Resources/UnityRuntimeCameraRecorderCrossFade.shader` when using `CrossFade`
+- the recorder's `Resources` directory
+
+The recorder package includes its crossfade shader. The application does not maintain a separate copy.
 
 Install FFmpeg separately. The current video backend requires Windows x64, Direct3D 11 and an NVIDIA GPU with NVENC.
 
@@ -253,12 +255,12 @@ recorder.RecordingCompleted += () =>
 
 The last diagnostic JSON remains available after capture resources are released.
 
-## 13. Capture a PNG sequence instead of video
+## 13. Capture an image sequence instead of video
 
-PNG capture does not use FFmpeg, NVENC or audio:
+Image sequence capture does not use FFmpeg, NVENC or audio:
 
 ```csharp
-recorder.StartPngSequence(camera, new ImageSequenceSettings
+recorder.StartImageSequence(camera, new ImageSequenceSettings
 {
     OutputDirectory = Path.Combine(directory, "Frames"),
     FileNamePrefix = "frame_",
@@ -281,11 +283,11 @@ Increase `EncoderThreadCount` and `MaximumQueuedFrames` for short, high-rate exp
 Stop it and inspect the resulting frame count:
 
 ```csharp
-recorder.StopPngSequence();
-Debug.Log(recorder.CapturedPngFrameCount);
+recorder.StopImageSequence();
+Debug.Log(recorder.CapturedImageFrameCount);
 ```
 
-An application-prepared `RenderTexture` can be supplied as the third argument to `StartPngSequence`.
+An application-prepared `RenderTexture` can be supplied as the third argument to `StartImageSequence`.
 
 ## 14. Release application-owned resources
 

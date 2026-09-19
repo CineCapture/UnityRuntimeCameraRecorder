@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <RecorderPackageVersion Condition="'$(RecorderPackageVersion)' == ''">1.0.0-snapshot</RecorderPackageVersion>
+    <RecorderPackageDirectory>$(MSBuildProjectDirectory)\bin\packages</RecorderPackageDirectory>
+    <RecorderPackageStagingDirectory>$(RecorderPackageDirectory)\UnityRuntimeCameraRecorder-$(RecorderPackageVersion)</RecorderPackageStagingDirectory>
+    <RecorderPackagePath>$(RecorderPackageDirectory)\UnityRuntimeCameraRecorder-$(RecorderPackageVersion).zip</RecorderPackagePath>
+    <NativeEncoderPath>$(MSBuildProjectDirectory)\..\Direct3DVideoEncoder\build\x64\Release\Direct3DVideoEncoder.dll</NativeEncoderPath>
+  </PropertyGroup>
+
+  <!-- Builds a Unity-ready archive containing every recorder-owned runtime asset. -->
+  <Target Name="Package" DependsOnTargets="Build">
+    <Error Condition="'$(Configuration)' != 'Release'" Text="Use Configuration=Release when packaging the recorder." />
+    <Error Condition="!Exists('$(NativeEncoderPath)')" Text="Build the Release x64 native encoder before packaging the recorder." />
+    <Error Condition="!Exists('$(TargetDir)FFmpegMediaWriter.dll')" Text="FFmpegMediaWriter.dll was not produced." />
+
+    <RemoveDir Directories="$(RecorderPackageStagingDirectory)" />
+    <MakeDir Directories="$(RecorderPackageStagingDirectory)\Assets\Plugins\x86_64" />
+    <MakeDir Directories="$(RecorderPackageStagingDirectory)\Assets\Resources" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(RecorderPackageStagingDirectory)\Assets\Plugins" />
+    <Copy SourceFiles="$(TargetDir)FFmpegMediaWriter.dll" DestinationFolder="$(RecorderPackageStagingDirectory)\Assets\Plugins" />
+    <Copy SourceFiles="$(NativeEncoderPath)" DestinationFolder="$(RecorderPackageStagingDirectory)\Assets\Plugins\x86_64" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Resources\UnityRuntimeCameraRecorderCrossFade.shader;$(MSBuildProjectDirectory)\Resources\UnityRuntimeCameraRecorderCrossFade.shader.meta"
+          DestinationFolder="$(RecorderPackageStagingDirectory)\Assets\Resources" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\README.md;$(MSBuildProjectDirectory)\DEVELOPER_GUIDE.md;$(MSBuildProjectDirectory)\LICENSE"
+          DestinationFolder="$(RecorderPackageStagingDirectory)" />
+    <ZipDirectory SourceDirectory="$(RecorderPackageStagingDirectory)"
+                  DestinationFile="$(RecorderPackagePath)"
+                  Overwrite="true" />
+    <RemoveDir Directories="$(RecorderPackageStagingDirectory)" />
+    <Message Importance="high" Text="Recorder package created: $(RecorderPackagePath)" />
+  </Target>
+</Project>

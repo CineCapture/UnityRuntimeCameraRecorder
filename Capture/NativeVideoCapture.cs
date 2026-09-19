@@ -53,16 +53,19 @@ namespace UnityRuntimeCameraRecorder
             {
                 return Direct3DVideoEncoderGetRenderEventFunction() != IntPtr.Zero;
             }
-            catch (DllNotFoundException)
+            catch (DllNotFoundException exception)
             {
+                RecorderLog.WriteWarning("The native video encoder library was not found: " + exception.Message);
                 return false;
             }
-            catch (EntryPointNotFoundException)
+            catch (EntryPointNotFoundException exception)
             {
+                RecorderLog.WriteWarning("The native video encoder entry point was not found: " + exception.Message);
                 return false;
             }
-            catch (BadImageFormatException)
+            catch (BadImageFormatException exception)
             {
+                RecorderLog.WriteWarning("The native video encoder library has an incompatible format: " + exception.Message);
                 return false;
             }
         }

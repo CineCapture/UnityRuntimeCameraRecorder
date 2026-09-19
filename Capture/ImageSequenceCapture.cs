@@ -12,8 +12,8 @@ using UnityEngine.Rendering;
 
 namespace UnityRuntimeCameraRecorder
 {
-    // Captures a Unity camera as a numbered PNG image sequence without blocking the render loop.
-    internal sealed class PngSequenceCapture : MonoBehaviour
+    // Captures a Unity camera as a numbered image sequence without blocking the render loop.
+    internal sealed class ImageSequenceCapture : MonoBehaviour
     {
         private Camera _camera;
         private ImageSequenceSettings _settings;
@@ -21,7 +21,7 @@ namespace UnityRuntimeCameraRecorder
         private RenderTexture _readbackTarget;
         private RenderTexture _previousTarget;
         private Coroutine _captureRoutine;
-        private BlockingCollection<PngFrame> _frames;
+        private BlockingCollection<ImageFrame> _frames;
         private Task[] _writerTasks;
         private Exception _writerException;
         private long _captureIntervalTicks;
@@ -51,7 +51,7 @@ namespace UnityRuntimeCameraRecorder
             _readbackTarget = requiresReadbackTarget ? CreateTarget(settings.Width, settings.Height, 1) : _source;
             _ownsReadbackTarget = requiresReadbackTarget;
 
-            _frames = new BlockingCollection<PngFrame>(settings.MaximumQueuedFrames);
+            _frames = new BlockingCollection<ImageFrame>(settings.MaximumQueuedFrames);
             _writerTasks = new Task[settings.EncoderThreadCount];
             for (int index = 0; index < _writerTasks.Length; index++)
             {
@@ -67,7 +67,7 @@ namespace UnityRuntimeCameraRecorder
             _active = true;
             _captureRoutine = StartCoroutine(CaptureLoop());
             RecorderLog.WriteInfo(
-                $"Asynchronous PNG sequence capture started at {settings.CapturesPerSecond:0.###} image(s) per second: {settings.OutputDirectory}");
+                $"Asynchronous image sequence capture started at {settings.CapturesPerSecond:0.###} image(s) per second: {settings.OutputDirectory}");
         }
 
         // Stops capture, drains GPU readbacks and waits for queued files to finish.
@@ -97,10 +97,10 @@ namespace UnityRuntimeCameraRecorder
             _writerTasks = null;
 
             RecorderLog.WriteInfo(
-                $"PNG sequence capture stopped: written={_capturedFrameCount}, dropped={_droppedFrameCount}.");
+                $"Image sequence capture stopped: written={_capturedFrameCount}, dropped={_droppedFrameCount}.");
             if (_writerException != null)
             {
-                throw new IOException("The PNG sequence writer failed.", _writerException);
+                throw new IOException("The image sequence writer failed.", _writerException);
             }
         }
 
@@ -187,11 +187,11 @@ namespace UnityRuntimeCameraRecorder
             if (request.hasError)
             {
                 _droppedFrameCount++;
-                RecorderLog.WriteWarning("GPU readback failed for a PNG sequence frame.");
+                RecorderLog.WriteWarning("GPU readback failed for an image sequence frame.");
                 return;
             }
 
-            var frame = new PngFrame(frameNumber, request.GetData<byte>().ToArray());
+            var frame = new ImageFrame(frameNumber, request.GetData<byte>().ToArray());
             if (!_frames.IsAddingCompleted && _frames.TryAdd(frame))
             {
                 return;
@@ -205,7 +205,7 @@ namespace UnityRuntimeCameraRecorder
         {
             try
             {
-                foreach (PngFrame frame in _frames.GetConsumingEnumerable())
+                foreach (ImageFrame frame in _frames.GetConsumingEnumerable())
                 {
                     WriteFrame(frame);
                     Interlocked.Increment(ref _capturedFrameCount);
@@ -213,12 +213,13 @@ namespace UnityRuntimeCameraRecorder
             }
             catch (Exception exception)
             {
+                RecorderLog.WriteError(exception);
                 Interlocked.CompareExchange(ref _writerException, exception, null);
             }
         }
 
         // Encodes one queued frame in the configured image format.
-        private void WriteFrame(PngFrame frame)
+        private void WriteFrame(ImageFrame frame)
         {
             string extension = _settings.FileFormat == ImageSequenceFormat.Jpeg ? "jpg" : "png";
             string path = Path.Combine(_settings.OutputDirectory, $"{_settings.FileNamePrefix}{frame.Number:D6}.{extension}");
@@ -283,15 +284,15 @@ namespace UnityRuntimeCameraRecorder
         {
             if (target != null && (target.width != width || target.height != height))
             {
-                throw new ArgumentException("The prepared target does not match the PNG sequence dimensions.");
+                throw new ArgumentException("The prepared target does not match the image sequence dimensions.");
             }
         }
 
         // Carries one numbered RGBA frame from GPU readback to the PNG writer.
-        private sealed class PngFrame
+        private sealed class ImageFrame
         {
             // Creates an immutable queued frame.
-            public PngFrame(int number, byte[] pixels)
+            public ImageFrame(int number, byte[] pixels)
             {
                 Number = number;
                 Pixels = pixels;
