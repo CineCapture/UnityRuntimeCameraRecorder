@@ -13,24 +13,19 @@ namespace UnityMediaRecorder
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate void PacketCallback(IntPtr data, int length, long timestampMicroseconds);
         private VideoCaptureContext _context;
-        private Camera _camera;
         private RenderTexture _renderTarget;
         private RenderTexture _target;
-        private RenderTexture _previousTarget;
         private PacketCallback _packetCallback;
         private IntPtr _renderEventFunction;
         private int _sessionId;
         private long _captureIntervalTicks;
         private long _nextCaptureTimestamp;
-        private bool _previousEnabled;
-        private bool _ownsRenderTarget;
-        private bool _ownsTarget;
         private bool _active;
         private int _rejectedPackets;
         private Coroutine _captureCoroutine;
         private RenderTexture _screenTarget;
         private ScreenCursorOverlay _screenCursorOverlay;
-        private CameraSequenceCompositor _cameraSequenceCompositor;
+        private VideoSequenceCompositor _videoSequenceCompositor;
         private string _diagnosticsJson;
         public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
@@ -77,17 +72,12 @@ namespace UnityMediaRecorder
         {
             _diagnosticsJson = null;
             _context = context;
-            _camera = context.Camera;
-            bool needsResize = context.PreparedTarget != null && (context.PreparedTarget.width != context.Width || context.PreparedTarget.height != context.Height);
-            bool needsResolve = (context.PreparedTarget?.antiAliasing ?? context.AntiAliasingSamples) > 1;
-            if (context.FlipVertically || needsResolve || needsResize)
+            if (context.FlipVertically)
             {
-                _renderTarget = context.PreparedTarget ?? CreateTarget(context.Width, context.Height, context.AntiAliasingSamples);
-                _ownsRenderTarget = context.PreparedTarget == null;
+                _renderTarget = CreateTarget(context.Width, context.Height);
             }
 
-            _target = !context.FlipVertically && !needsResolve && !needsResize && context.PreparedTarget != null ? context.PreparedTarget : CreateTarget(context.Width, context.Height, 1);
-            _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve || needsResize;
+            _target = CreateTarget(context.Width, context.Height);
             _packetCallback = ReceivePacket;
             _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
             int preset = context.OptimizeForConcurrentEncoding ? 4 : context.QualityProfile.NativeEncodingPreset;
@@ -99,23 +89,10 @@ namespace UnityMediaRecorder
 
             _captureIntervalTicks = Math.Max(1L, Stopwatch.Frequency / context.MaximumFrameRate);
             _nextCaptureTimestamp = 0;
-            _previousTarget = _camera != null ? _camera.targetTexture : null;
-            _previousEnabled = _camera != null && _camera.enabled;
-            if (context.CameraSequence != null)
-            {
-                _cameraSequenceCompositor = new CameraSequenceCompositor(context.CameraSequence, context.Width, context.Height, context.FlipVertically, Time.realtimeSinceStartup);
-            }
-            else if (!context.CaptureScreen)
-            {
-                _camera.targetTexture = _renderTarget ?? _target;
-            }
+            _videoSequenceCompositor = new VideoSequenceCompositor(context.VideoSequence, context.Width, context.Height, context.FlipVertically, Time.realtimeSinceStartup);
 
             _active = true;
             _captureCoroutine = StartCoroutine(CaptureFramesAtEndOfFrame());
-            if (context.CameraSequence == null && !context.CaptureScreen)
-            {
-                _camera.enabled = true;
-            }
         }
 
         // Stops NVENC capture and releases the GPU target.
@@ -128,13 +105,6 @@ namespace UnityMediaRecorder
                 _captureCoroutine = null;
             }
 
-            if (_context.CameraSequence == null && !_context.CaptureScreen)
-            {
-                _camera.enabled = _previousEnabled;
-                _camera.targetTexture = _previousTarget;
-            }
-
-            _previousTarget = null;
             Direct3DVideoEncoderStop(_sessionId);
             _diagnosticsJson = Marshal.PtrToStringAnsi(Direct3DVideoEncoderGetTelemetry(_sessionId));
             MediaRecorderLog.WriteInfo("NATIVE_PIPELINE " + _diagnosticsJson);
@@ -152,39 +122,47 @@ namespace UnityMediaRecorder
             }
 
             _packetCallback = null;
-            if (_renderTarget != null && _ownsRenderTarget)
+            if (_renderTarget != null)
             {
-                _renderTarget.Release();
-                Destroy(_renderTarget);
+                ReleaseTarget(_renderTarget);
                 _renderTarget = null;
             }
 
-            if (_target != null && _ownsTarget)
+            if (_target != null)
             {
-                _target.Release();
-                Destroy(_target);
+                ReleaseTarget(_target);
             }
 
             _target = null;
             if (_screenTarget != null)
             {
-                _screenTarget.Release();
-                Destroy(_screenTarget);
+                ReleaseTarget(_screenTarget);
                 _screenTarget = null;
             }
             _screenCursorOverlay?.Dispose();
             _screenCursorOverlay = null;
-            _cameraSequenceCompositor?.Dispose();
-            _cameraSequenceCompositor = null;
+            _videoSequenceCompositor?.Dispose();
+            _videoSequenceCompositor = null;
         }
 
         // Creates one sRGB render texture compatible with Unity camera output.
-        private static RenderTexture CreateTarget(int width, int height, int antiAliasingSamples)
+        private static RenderTexture CreateTarget(int width, int height)
         {
             var target = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
-            target.antiAliasing = antiAliasingSamples;
             target.Create();
             return target;
+        }
+
+        // Releases an owned target without leaving it bound as the active render surface.
+        private static void ReleaseTarget(RenderTexture target)
+        {
+            if (RenderTexture.active == target)
+            {
+                RenderTexture.active = null;
+            }
+
+            target.Release();
+            Destroy(target);
         }
 
         // Waits until every camera and Canvas has completed before sampling the final target.
@@ -216,19 +194,11 @@ namespace UnityMediaRecorder
                 _nextCaptureTimestamp = timestamp;
             }
 
-            if (_context.CaptureScreen)
+            if (_videoSequenceCompositor.RequiresScreen)
             {
                 CaptureScreenFrame();
-                Graphics.Blit(_screenTarget, _renderTarget ?? _target);
             }
-            else if (_cameraSequenceCompositor != null)
-            {
-                if (_cameraSequenceCompositor.RequiresScreen)
-                {
-                    CaptureScreenFrame();
-                }
-                _cameraSequenceCompositor.Render(_renderTarget ?? _target, _screenTarget, Time.realtimeSinceStartup);
-            }
+            _videoSequenceCompositor.Render(_renderTarget ?? _target, _screenTarget, Time.realtimeSinceStartup);
 
             if (_renderTarget != null)
             {
@@ -262,7 +232,7 @@ namespace UnityMediaRecorder
                     _screenTarget.Release();
                     Destroy(_screenTarget);
                 }
-                _screenTarget = CreateTarget(Screen.width, Screen.height, 1);
+                _screenTarget = CreateTarget(Screen.width, Screen.height);
             }
             RenderTexture previousActive = RenderTexture.active;
             RenderTexture.active = null;

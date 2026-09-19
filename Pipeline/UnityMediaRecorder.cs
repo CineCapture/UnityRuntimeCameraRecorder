@@ -12,11 +12,9 @@ namespace UnityMediaRecorder
         private IMediaWriter _writer;
         private UnityAudioCapture _audio;
         private VideoCaptureBackend _videoBackend;
-        private Camera _camera;
         private AudioListener _listener;
         private RecordingSettings _settings;
         private RecordingQualityProfile _qualityProfile;
-        private RenderTexture _preparedVideoTarget;
         private bool _waitingForAudio;
         private bool _waitingForPipes;
         private bool _videoCaptureStarted;
@@ -27,7 +25,7 @@ namespace UnityMediaRecorder
         private float _captureStartTime;
         private float _captureDuration;
         private Task _statisticsTask;
-        private CameraSequenceSettings _cameraSequence;
+        private VideoSequenceSettings _videoSequence;
         public event Action CaptureStarted;
         public event Action CaptureStarting;
         public event Action FinalizationStarted;
@@ -41,42 +39,27 @@ namespace UnityMediaRecorder
         public string LastVideoDiagnosticsJson { get; private set; }
         public int CapturedPngFrameCount => _pngSequenceCapture?.CapturedFrameCount ?? _lastCapturedPngFrameCount;
 
-        // Creates capture resources and begins one asynchronous recording session.
-        public void StartRecording(Camera camera, AudioListener listener, RecordingSettings settings, RenderTexture preparedVideoTarget = null)
+        // Starts one output from one or more explicit video sources.
+        public void StartRecording(VideoSequenceSettings sequence, AudioListener listener, RecordingSettings settings)
         {
             if (IsBusy)
             {
                 throw new InvalidOperationException("The media recorder is already busy.");
             }
-
-            ValidateArguments(camera, listener, settings);
-            StartRecordingCore(camera, listener, settings, preparedVideoTarget, null);
+            ValidateVideoSequence(sequence);
+            ValidateArguments(listener, settings);
+            StartRecordingCore(listener, settings, sequence);
         }
 
-        // Starts one output that automatically switches between several source cameras.
-        public void StartRecording(CameraSequenceSettings sequence, AudioListener listener, RecordingSettings settings)
-        {
-            if (IsBusy)
-            {
-                throw new InvalidOperationException("The media recorder is already busy.");
-            }
-            ValidateCameraSequence(sequence);
-            Camera camera = GetFirstSequenceCamera(sequence);
-            ValidateArguments(camera, listener, settings, true);
-            StartRecordingCore(camera, listener, settings, null, sequence);
-        }
-
-        // Creates shared resources for single-camera and camera-sequence recordings.
-        private void StartRecordingCore(Camera camera, AudioListener listener, RecordingSettings settings, RenderTexture preparedVideoTarget, CameraSequenceSettings sequence)
+        // Creates shared resources for an explicit-source recording.
+        private void StartRecordingCore(AudioListener listener, RecordingSettings settings, VideoSequenceSettings sequence)
         {
             if (settings.CaptureHdr) throw new NotSupportedException("HDR recording is not supported by the SDR quality profile.");
             LastVideoDiagnosticsJson = null;
-            _camera = camera;
             _listener = listener;
             _qualityProfile = RecordingQualityProfile.FromPreset(settings.QualityPreset, settings.Width, settings.Height, settings.MaximumFrameRate);
             _settings = settings;
-            _preparedVideoTarget = preparedVideoTarget;
-            _cameraSequence = sequence;
+            _videoSequence = sequence;
             try
             {
                 _videoBackend = VideoCaptureBackendRegistry.Create(gameObject);
@@ -239,8 +222,8 @@ namespace UnityMediaRecorder
         // Starts the selected backend that produces encoded video packets.
         private void StartVideoCapture()
         {
-            bool flipVertically = _settings.FlipVertically ?? (!_settings.CaptureScreen && SystemInfo.graphicsUVStartsAtTop);
-            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _cameraSequence, _settings.OptimizeForConcurrentEncoding, flipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
+            bool flipVertically = _settings.FlipVertically ?? SystemInfo.graphicsUVStartsAtTop;
+            var context = new VideoCaptureContext(_settings.Width, _settings.Height, _settings.MaximumFrameRate, _qualityProfile, _videoSequence, _settings.OptimizeForConcurrentEncoding, flipVertically, _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _captureStartTime = Time.realtimeSinceStartup;
             _videoCaptureStarted = true;
@@ -254,10 +237,10 @@ namespace UnityMediaRecorder
                 return;
             }
 
-            RenderTexture source = _preparedVideoTarget ?? _camera.targetTexture;
+            RenderTexture source = GetPreviewSource();
             if (source == null)
             {
-                throw new InvalidOperationException("Preview-image generation requires a prepared video target or a camera target texture.");
+                throw new InvalidOperationException("Preview-image generation requires a camera or render-texture source.");
             }
 
             RenderTexture readableSource = source;
@@ -352,6 +335,25 @@ namespace UnityMediaRecorder
             }
         }
 
+        // Finds the first source that can be read synchronously for a preview image.
+        private RenderTexture GetPreviewSource()
+        {
+            foreach (VideoSequenceSource source in _videoSequence.Sources)
+            {
+                if (source.Kind == VideoSequenceSource.SourceKind.Camera)
+                {
+                    return source.Camera.targetTexture;
+                }
+
+                if (source.Kind == VideoSequenceSource.SourceKind.Texture && source.Texture is RenderTexture renderTexture)
+                {
+                    return renderTexture;
+                }
+            }
+
+            return null;
+        }
+
         // Starts optional per-video statistics generation on a worker thread.
         private void StartStatistics()
         {
@@ -400,13 +402,8 @@ namespace UnityMediaRecorder
         }
 
         // Rejects missing or invalid session arguments before resources are allocated.
-        private static void ValidateArguments(Camera camera, AudioListener listener, RecordingSettings settings, bool allowMissingCamera = false)
+        private static void ValidateArguments(AudioListener listener, RecordingSettings settings)
         {
-            if (camera == null && !allowMissingCamera)
-            {
-                throw new ArgumentNullException(nameof(camera));
-            }
-
             if (listener == null)
             {
                 throw new ArgumentNullException(nameof(listener));
@@ -432,7 +429,7 @@ namespace UnityMediaRecorder
                 throw new ArgumentOutOfRangeException(nameof(settings));
             }
 
-            if (settings.AntiAliasingSamples != 1 && settings.AntiAliasingSamples != 2 && settings.AntiAliasingSamples != 4 && settings.AntiAliasingSamples != 8)
+            if (settings.SourceAntiAliasingSamples != 1 && settings.SourceAntiAliasingSamples != 2 && settings.SourceAntiAliasingSamples != 4 && settings.SourceAntiAliasingSamples != 8)
             {
                 throw new ArgumentOutOfRangeException(nameof(settings), "Anti-aliasing samples must be 1, 2, 4 or 8.");
             }
@@ -464,31 +461,17 @@ namespace UnityMediaRecorder
         }
 
         // Rejects camera sequences that cannot produce a valid transition schedule.
-        private static void ValidateCameraSequence(CameraSequenceSettings sequence)
+        private static void ValidateVideoSequence(VideoSequenceSettings sequence)
         {
-            int sourceCount = GetSequenceSourceCount(sequence);
-            if (sourceCount < 2)
+            if (sequence?.Sources == null || sequence.Sources.Count < 1)
             {
-                throw new ArgumentException("A camera sequence requires at least two camera or screen sources.", nameof(sequence));
+                throw new ArgumentException("A video recording requires at least one source.", nameof(sequence));
             }
-            if (sequence.Sources != null)
+            foreach (VideoSequenceSource source in sequence.Sources)
             {
-                foreach (VideoSequenceSource source in sequence.Sources)
+                if (source == null)
                 {
-                    if (source == null)
-                    {
-                        throw new ArgumentException("A video sequence cannot contain a null source.", nameof(sequence));
-                    }
-                }
-            }
-            else
-            {
-                foreach (Camera camera in sequence.Cameras)
-                {
-                    if (camera == null)
-                    {
-                        throw new ArgumentException("A camera sequence cannot contain a null camera.", nameof(sequence));
-                    }
+                    throw new ArgumentException("A video sequence cannot contain a null source.", nameof(sequence));
                 }
             }
             if (sequence.MinimumShotDurationSeconds <= 0 || sequence.MaximumShotDurationSeconds < sequence.MinimumShotDurationSeconds)
@@ -503,43 +486,13 @@ namespace UnityMediaRecorder
             {
                 throw new ArgumentException("At least one camera transition is required.", nameof(sequence));
             }
-            foreach (CameraSequenceTransition transition in sequence.Transitions)
+            foreach (VideoSequenceTransition transition in sequence.Transitions)
             {
-                if (transition != CameraSequenceTransition.CrossFade && transition != CameraSequenceTransition.NoTransition)
+                if (transition != VideoSequenceTransition.CrossFade && transition != VideoSequenceTransition.NoTransition)
                 {
                     throw new ArgumentOutOfRangeException(nameof(sequence), "The sequence contains an unsupported transition.");
                 }
             }
-        }
-
-        // Returns the number of explicit or legacy sequence sources.
-        private static int GetSequenceSourceCount(CameraSequenceSettings sequence)
-        {
-            if (sequence == null)
-            {
-                return 0;
-            }
-
-            return sequence.Sources?.Count ?? ((sequence.Cameras?.Count ?? 0) + (sequence.IncludeScreen ? 1 : 0));
-        }
-
-        // Finds a camera used for compatibility with the shared capture context.
-        private static Camera GetFirstSequenceCamera(CameraSequenceSettings sequence)
-        {
-            if (sequence.Sources != null)
-            {
-                foreach (VideoSequenceSource source in sequence.Sources)
-                {
-                    if (source != null && source.Kind == VideoSequenceSource.SourceKind.Camera)
-                    {
-                        return source.Camera;
-                    }
-                }
-
-                return null;
-            }
-
-            return sequence.Cameras != null && sequence.Cameras.Count > 0 ? sequence.Cameras[0] : null;
         }
 
         // Rejects missing or invalid PNG sequence arguments before resources are allocated.

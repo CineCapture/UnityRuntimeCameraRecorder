@@ -45,7 +45,7 @@ namespace UnityMediaRecorder
                 $"Resolution: {_settings.Width} x {_settings.Height}",
                 $"Target frame rate: {_settings.MaximumFrameRate} FPS",
                 $"VSync: {(_vSyncCount > 0 ? "Enabled" : "Disabled")}",
-                $"Anti-aliasing: {(_settings.AntiAliasingSamples > 1 ? $"MSAA {_settings.AntiAliasingSamples}x" : "Disabled")}",
+                $"Anti-aliasing: {(_settings.SourceAntiAliasingSamples > 1 ? $"MSAA {_settings.SourceAntiAliasingSamples}x" : "Disabled")}",
                 $"Video codec: {(_settings.VideoStreamFormat == VideoStreamFormat.Hevc ? "HEVC" : "H.264")}",
                 $"NVENC preset: P{ReadInteger("preset", _profile.NativeEncodingPreset)}",
                 $"CQP: {_profile.QuantizationParameter}",

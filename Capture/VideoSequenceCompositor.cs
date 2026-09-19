@@ -5,9 +5,9 @@ using UnityEngine;
 namespace UnityMediaRecorder
 {
     // Renders a timed camera sequence into one GPU texture with crossfade transitions.
-    internal sealed class CameraSequenceCompositor : IDisposable
+    internal sealed class VideoSequenceCompositor : IDisposable
     {
-        private readonly CameraSequenceSettings _settings;
+        private readonly VideoSequenceSettings _settings;
         private readonly IReadOnlyList<VideoSequenceSource> _sources;
         private readonly System.Random _random;
         private readonly List<int> _randomOrder = new List<int>();
@@ -19,13 +19,14 @@ namespace UnityMediaRecorder
         private int _nextIndex = -1;
         private float _shotEndTime;
         private float _transitionStartTime;
-        private CameraSequenceTransition _activeTransition;
+        private VideoSequenceTransition _activeTransition;
 
         // Resolves source descriptors and allocates reusable render targets.
-        internal CameraSequenceCompositor(CameraSequenceSettings settings, int width, int height, bool flipVertically, float startTime)
+        internal VideoSequenceCompositor(VideoSequenceSettings settings, int width, int height, bool flipVertically, float startTime)
         {
             _settings = settings;
-            _sources = CreateSources(settings);
+            _sources = settings.Sources;
+            RequiresScreen = ContainsScreenSource(_sources);
             ValidateCameraSources();
             _preFlipScreen = flipVertically;
             _random = settings.RandomSeed.HasValue ? new System.Random(settings.RandomSeed.Value) : new System.Random();
@@ -36,7 +37,7 @@ namespace UnityMediaRecorder
             }
 
             _crossFadeMaterial = new Material(crossFadeShader) { hideFlags = HideFlags.HideAndDontSave };
-            _currentIndex = settings.Order == CameraSequenceOrder.Random ? _random.Next(SourceCount) : 0;
+            _currentIndex = settings.Order == VideoSequenceOrder.Random ? _random.Next(SourceCount) : 0;
             _firstResolved = CreateTarget(width, height, 1);
             _secondResolved = CreateTarget(width, height, 1);
             _shotEndTime = startTime + NextShotDuration();
@@ -45,12 +46,12 @@ namespace UnityMediaRecorder
         // Renders the active camera and blends the next camera during a transition.
         internal void Render(RenderTexture output, RenderTexture screen, float time)
         {
-            if (_nextIndex < 0 && time >= _shotEndTime)
+            if (SourceCount > 1 && _nextIndex < 0 && time >= _shotEndTime)
             {
                 _nextIndex = SelectNextIndex();
                 _activeTransition = SelectTransition();
                 _transitionStartTime = time;
-                if (_activeTransition == CameraSequenceTransition.NoTransition)
+                if (_activeTransition == VideoSequenceTransition.NoTransition)
                 {
                     CompleteTransition(time);
                 }
@@ -135,29 +136,18 @@ namespace UnityMediaRecorder
             }
         }
 
-        // Converts the explicit source list or the legacy camera fields to one ordered list.
-        private IReadOnlyList<VideoSequenceSource> CreateSources(CameraSequenceSettings settings)
+        // Returns whether the sequence needs the completed player frame.
+        private static bool ContainsScreenSource(IReadOnlyList<VideoSequenceSource> sources)
         {
-            var sources = new List<VideoSequenceSource>();
-            if (settings.Sources != null)
+            foreach (VideoSequenceSource source in sources)
             {
-                sources.AddRange(settings.Sources);
-            }
-            else
-            {
-                foreach (Camera camera in settings.Cameras)
+                if (source.Kind == VideoSequenceSource.SourceKind.Screen)
                 {
-                    sources.Add(VideoSequenceSource.FromCamera(camera));
-                }
-
-                if (settings.IncludeScreen)
-                {
-                    sources.Add(VideoSequenceSource.FromScreen());
+                    return true;
                 }
             }
 
-            RequiresScreen = sources.Exists(source => source.Kind == VideoSequenceSource.SourceKind.Screen);
-            return sources;
+            return false;
         }
 
         // Blends two sources with complementary weights in one GPU pass.
@@ -171,7 +161,7 @@ namespace UnityMediaRecorder
         // Selects the next sequential or random camera without immediate repetition.
         private int SelectNextIndex()
         {
-            if (_settings.Order == CameraSequenceOrder.Sequential)
+            if (_settings.Order == VideoSequenceOrder.Sequential)
             {
                 return (_currentIndex + 1) % SourceCount;
             }
@@ -187,7 +177,7 @@ namespace UnityMediaRecorder
         }
 
         // Selects one configured transition with the sequence random generator.
-        private CameraSequenceTransition SelectTransition()
+        private VideoSequenceTransition SelectTransition()
         {
             int index = _settings.Transitions.Count == 1 ? 0 : _random.Next(_settings.Transitions.Count);
             return _settings.Transitions[index];
@@ -240,6 +230,11 @@ namespace UnityMediaRecorder
         // Releases one temporary render texture.
         private static void Release(RenderTexture target)
         {
+            if (RenderTexture.active == target)
+            {
+                RenderTexture.active = null;
+            }
+
             target.Release();
             UnityEngine.Object.Destroy(target);
         }
