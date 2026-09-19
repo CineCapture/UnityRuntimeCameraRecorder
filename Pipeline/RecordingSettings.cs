@@ -7,8 +7,6 @@ namespace UnityRuntimeCameraRecorder
     {
         public string FfmpegPath { get; set; }
         public string TemporaryContainerPath { get; set; }
-        public string ArchivePath { get; set; }
-        public bool KeepIntermediateFile { get; set; }
         public bool GenerateStatistics { get; set; }
         public string StatisticsPath { get; set; }
         public string FfprobePath { get; set; }

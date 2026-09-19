@@ -4,16 +4,9 @@ This step-by-step guide introduces every public feature of `UnityRuntimeCameraRe
 
 Each recorder creates one MP4. That MP4 can contain one source or switch between several camera, texture and screen sources.
 
-## 1. Install the runtime files
+## 1. Install the recorder package
 
-Add these files to the Unity project:
-
-- `UnityRuntimeCameraRecorder.dll`
-- `Direct3DVideoEncoder.dll`
-- `FFmpegMediaWriter.dll`
-- the recorder's `Resources` directory
-
-The recorder package includes its crossfade shader. The application does not maintain a separate copy.
+Import the complete recorder package into the Unity project. It includes all runtime DLLs and the crossfade shader; the application does not maintain these files separately.
 
 Install FFmpeg separately. The current video backend requires Windows x64, Direct3D 11 and an NVIDIA GPU with NVENC.
 
@@ -225,13 +218,6 @@ settings.FlipVertically = true;
 
 ## 11. Generate optional files
 
-Keep the intermediate MKV after successful MP4 creation:
-
-```csharp
-settings.KeepIntermediateFile = true;
-settings.ArchivePath = Path.Combine(directory, "capture.mkv");
-```
-
 Generate a text statistics file after finalization:
 
 ```csharp
@@ -322,7 +308,7 @@ catch (Exception exception)
 }
 ```
 
-Common causes are a disabled camera, a missing camera target, invalid dimensions, reused paths, missing executables or a missing shader when `CrossFade` is enabled.
+Common causes are a disabled camera, a missing camera target, invalid dimensions, reused paths or missing executables.
 
 ## 16. Connect library logging
 

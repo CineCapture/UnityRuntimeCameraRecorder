@@ -187,7 +187,7 @@ namespace UnityRuntimeCameraRecorder
             _waitingForAudio = false;
             try
             {
-                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, ArchivePath = _settings.ArchivePath, KeepIntermediateFile = _settings.KeepIntermediateFile, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, EncodedVideoHasPresentationTimestamps = true, AudioCodec = AudioEncodingCodec.Aac, AudioBitRate = _qualityProfile.AudioBitRate, OutputAudioSampleRate = _qualityProfile.AudioSampleRate, OutputAudioChannels = _qualityProfile.AudioChannels, Warning = RecorderLog.WriteWarning, Error = RecorderLog.WriteError });
+                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, EncodedVideoHasPresentationTimestamps = true, AudioCodec = AudioEncodingCodec.Aac, AudioBitRate = _qualityProfile.AudioBitRate, OutputAudioSampleRate = _qualityProfile.AudioSampleRate, OutputAudioChannels = _qualityProfile.AudioChannels, Warning = RecorderLog.WriteWarning, Error = RecorderLog.WriteError });
                 _writerStarted = true;
                 _waitingForPipes = true;
             }
@@ -374,11 +374,6 @@ namespace UnityRuntimeCameraRecorder
             if (string.IsNullOrWhiteSpace(settings.TemporaryContainerPath))
             {
                 throw new ArgumentException("A temporary container path is required.", nameof(settings));
-            }
-
-            if (settings.KeepIntermediateFile && string.IsNullOrWhiteSpace(settings.ArchivePath))
-            {
-                throw new ArgumentException("An archive path is required when keeping the intermediate file.", nameof(settings));
             }
 
             if (settings.GenerateStatistics && string.IsNullOrWhiteSpace(settings.FfmpegPath))

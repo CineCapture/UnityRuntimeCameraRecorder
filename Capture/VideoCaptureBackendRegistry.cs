@@ -49,7 +49,7 @@ namespace UnityRuntimeCameraRecorder
 
             throw new NotSupportedException(
                 "No compatible video encoder is available. The built-in encoder requires Windows, Direct3D 11, " +
-                "an NVIDIA GPU and Direct3DVideoEncoder.dll. PNG capture remains available.");
+                "an NVIDIA GPU and Direct3DVideoEncoder.dll. Image-sequence capture remains available.");
         }
 
         // Creates the native NVENC backend only on its supported graphics stack.

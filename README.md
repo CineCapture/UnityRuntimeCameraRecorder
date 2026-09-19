@@ -11,14 +11,7 @@ Record Unity cameras, render textures or the completed player screen with Unity 
 - NVIDIA GPU with NVENC and a recent driver
 - [FFmpeg](https://ffmpeg.org/download.html), installed separately
 
-Add these runtime files to the Unity project:
-
-- `UnityRuntimeCameraRecorder.dll`
-- [FFmpegMediaWriter.dll](https://github.com/UnityRuntimeCameraRecorder/FFmpegMediaWriter)
-- [Direct3DVideoEncoder.dll](https://github.com/UnityRuntimeCameraRecorder/Direct3DVideoEncoder)
-- the recorder's `Resources` directory
-
-The recorder package includes its crossfade shader. Applications do not need to supply or maintain it.
+Import the complete recorder package into the Unity project. It includes all runtime DLLs and the crossfade shader; applications do not supply or maintain these files separately.
 
 Build the Unity-ready archive with:
 
