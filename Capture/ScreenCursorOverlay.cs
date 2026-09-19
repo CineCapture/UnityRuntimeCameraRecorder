@@ -75,7 +75,8 @@ namespace UnityMediaRecorder
                 Graphics.SetRenderTarget(target);
                 GL.PushMatrix();
                 GL.LoadPixelMatrix(0, target.width, target.height, 0);
-                Graphics.DrawTexture(new Rect(position.x, position.y, CursorWidth * scale, CursorHeight * scale), _texture);
+                float cursorHeight = CursorHeight * scale;
+                Graphics.DrawTexture(new Rect(position.x, target.height - position.y - cursorHeight, CursorWidth * scale, cursorHeight), _texture);
                 GL.PopMatrix();
             }
             finally
