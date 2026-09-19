@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Describes one camera, screen, or texture used by a single-output sequence.
     public sealed class VideoSequenceSource

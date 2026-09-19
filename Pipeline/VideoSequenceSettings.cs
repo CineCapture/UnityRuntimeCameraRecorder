@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Selects how the recorder chooses the next source in a sequence.
     public enum VideoSequenceOrder

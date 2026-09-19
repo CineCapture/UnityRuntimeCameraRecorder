@@ -1,4 +1,4 @@
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Describes a numbered PNG image-sequence capture session.
     public sealed class PngSequenceSettings

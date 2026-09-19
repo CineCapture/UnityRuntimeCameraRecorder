@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Renders a timed camera sequence into one GPU texture with crossfade transitions.
     internal sealed class VideoSequenceCompositor : IDisposable
@@ -30,10 +30,10 @@ namespace UnityMediaRecorder
             ValidateCameraSources();
             _preFlipScreen = flipVertically;
             _random = settings.RandomSeed.HasValue ? new System.Random(settings.RandomSeed.Value) : new System.Random();
-            Shader crossFadeShader = Shader.Find("UnityMediaRecorder/CrossFade");
+            Shader crossFadeShader = Shader.Find("UnityRuntimeCameraRecorder/CrossFade");
             if (crossFadeShader == null)
             {
-                throw new InvalidOperationException("The UnityMediaRecorder/CrossFade shader is missing from the player build.");
+                throw new InvalidOperationException("The UnityRuntimeCameraRecorder/CrossFade shader is missing from the player build.");
             }
 
             _crossFadeMaterial = new Material(crossFadeShader) { hideFlags = HideFlags.HideAndDontSave };

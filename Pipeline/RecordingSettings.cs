@@ -1,6 +1,6 @@
 using FFmpegMediaWriter;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Describes one recording session without depending on a game or configuration framework.
     public sealed class RecordingSettings

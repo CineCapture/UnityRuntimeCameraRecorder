@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using FFmpegMediaWriter;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Captures Unity frames through a direct Direct3D 11 to NVENC path.
     internal sealed class NativeVideoCapture : VideoCaptureBackend

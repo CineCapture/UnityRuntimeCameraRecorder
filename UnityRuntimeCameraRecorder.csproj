@@ -4,8 +4,8 @@
     <LangVersion>10</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <RootNamespace>UnityMediaRecorder</RootNamespace>
-    <AssemblyName>UnityMediaRecorder</AssemblyName>
+    <RootNamespace>UnityRuntimeCameraRecorder</RootNamespace>
+    <AssemblyName>UnityRuntimeCameraRecorder</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../FFmpegMediaWriter/FFmpegMediaWriter.csproj" />

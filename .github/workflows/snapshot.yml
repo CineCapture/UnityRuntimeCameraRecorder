@@ -24,13 +24,13 @@ jobs:
     defaults:
       run:
         shell: pwsh
-        working-directory: UnityMediaRecorder
+        working-directory: UnityRuntimeCameraRecorder
 
     steps:
       - name: Check out recorder source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          path: UnityMediaRecorder
+          path: UnityRuntimeCameraRecorder
           persist-credentials: false
 
       - name: Check out media writer dependency
@@ -65,7 +65,7 @@ jobs:
             throw "Unity compilation references were not found in $managed."
           }
           New-Item -ItemType Directory -Path obj -Force | Out-Null
-          dotnet build UnityMediaRecorder.csproj -c Release "-p:UnityManagedPath=$managed" -v minimal /fl '/flp:logfile=obj/snapshot-build.log;verbosity=normal'
+          dotnet build UnityRuntimeCameraRecorder.csproj -c Release "-p:UnityManagedPath=$managed" -v minimal /fl '/flp:logfile=obj/snapshot-build.log;verbosity=normal'
           if ($LASTEXITCODE -ne 0) {
             throw "Build failed with exit code $LASTEXITCODE."
           }
@@ -74,10 +74,10 @@ jobs:
         run: |
           $snapshot = 'bin/snapshot'
           New-Item -ItemType Directory -Path $snapshot -Force | Out-Null
-          Copy-Item -LiteralPath 'bin/Release/netstandard2.1/UnityMediaRecorder.dll', 'bin/Release/netstandard2.1/FFmpegMediaWriter.dll', 'LICENSE', 'README.md' -Destination $snapshot
+          Copy-Item -LiteralPath 'bin/Release/netstandard2.1/UnityRuntimeCameraRecorder.dll', 'bin/Release/netstandard2.1/FFmpegMediaWriter.dll', 'LICENSE', 'README.md' -Destination $snapshot
           Copy-Item -LiteralPath '../FFmpegMediaWriter/LICENSE' -Destination "$snapshot/FFmpegMediaWriter.LICENSE"
           $hashes = [ordered]@{}
-          foreach ($name in 'UnityMediaRecorder.dll', 'FFmpegMediaWriter.dll') {
+          foreach ($name in 'UnityRuntimeCameraRecorder.dll', 'FFmpegMediaWriter.dll') {
             $dll = Get-Item -LiteralPath "$snapshot/$name"
             if ($dll.Length -eq 0) {
               throw "The compiled $name is empty."
@@ -101,8 +101,8 @@ jobs:
       - name: Upload snapshot
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: UnityMediaRecorder-snapshot-netstandard2.1-anycpu-${{ github.sha }}-${{ github.run_attempt }}
-          path: UnityMediaRecorder/bin/snapshot/
+          name: UnityRuntimeCameraRecorder-snapshot-netstandard2.1-anycpu-${{ github.sha }}-${{ github.run_attempt }}
+          path: UnityRuntimeCameraRecorder/bin/snapshot/
           if-no-files-found: error
           retention-days: 30
 
@@ -110,7 +110,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: UnityMediaRecorder-build-log-${{ github.run_id }}-${{ github.run_attempt }}
-          path: UnityMediaRecorder/obj/snapshot-build.log
+          name: UnityRuntimeCameraRecorder-build-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: UnityRuntimeCameraRecorder/obj/snapshot-build.log
           if-no-files-found: ignore
           retention-days: 30

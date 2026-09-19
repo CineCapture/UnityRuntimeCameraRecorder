@@ -1,6 +1,6 @@
 using System;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Provides optional logging callbacks without coupling the library to a logging framework.
     public static class MediaRecorderLog

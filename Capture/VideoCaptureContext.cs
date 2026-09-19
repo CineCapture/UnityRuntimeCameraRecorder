@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Provides a video backend with session inputs and format-neutral output callbacks.
     public sealed class VideoCaptureContext

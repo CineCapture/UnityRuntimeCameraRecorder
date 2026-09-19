@@ -6,7 +6,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using FFmpegMediaWriter;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Generates one readable statistics file for one completed video.
     internal sealed class VideoStatisticsSnapshot

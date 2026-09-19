@@ -4,10 +4,10 @@ using System.Threading.Tasks;
 using FFmpegMediaWriter;
 using UnityEngine;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Coordinates Unity capture, native encoding, FFmpeg multiplexing and MP4 finalization.
-    public sealed class UnityMediaRecorder : MonoBehaviour
+    public sealed class UnityRuntimeCameraRecorder : MonoBehaviour
     {
         private IMediaWriter _writer;
         private UnityAudioCapture _audio;

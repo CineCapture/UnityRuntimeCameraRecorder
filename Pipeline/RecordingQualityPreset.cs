@@ -1,6 +1,6 @@
 using System;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     public enum RecordingQualityPreset { Low, Medium, High }
 

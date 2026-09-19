@@ -1,4 +1,4 @@
-Shader "UnityMediaRecorder/CrossFade"
+Shader "UnityRuntimeCameraRecorder/CrossFade"
 {
     Properties
     {

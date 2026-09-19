@@ -1,4 +1,4 @@
-# UnityMediaRecorder
+# UnityRuntimeCameraRecorder
 
 Record one or more explicit Unity video sources with audio. Each recorder creates one MP4. The application owns source rendering, resolution, anti-aliasing, effects and recording duration.
 
@@ -8,7 +8,7 @@ Audio is encoded as AAC at 128 or 192 kbit/s according to the quality profile, w
 
 The DLL targets .NET Standard 2.1 for compatible Unity runtimes on Windows, Linux and macOS. Unity 6's referenced assemblies require 2.1. PNG capture uses Unity's GPU readback APIs and requires a graphics device supporting asynchronous readback. Linux/macOS execution has not yet been tested.
 
-For the current video backend: Windows x64, Unity running Direct3D 11, an NVIDIA GPU with NVENC and a recent driver. Include `UnityMediaRecorder.dll`, [Direct3DVideoEncoder.dll](https://github.com/UnityRuntimeCameraRecorder/Direct3DVideoEncoder) and [FFmpegMediaWriter.dll](https://github.com/UnityRuntimeCameraRecorder/FFmpegMediaWriter).
+For the current video backend: Windows x64, Unity running Direct3D 11, an NVIDIA GPU with NVENC and a recent driver. Include `UnityRuntimeCameraRecorder.dll`, [Direct3DVideoEncoder.dll](https://github.com/UnityRuntimeCameraRecorder/Direct3DVideoEncoder) and [FFmpegMediaWriter.dll](https://github.com/UnityRuntimeCameraRecorder/FFmpegMediaWriter).
 
 Install FFmpeg separately and supply its executable path in `RecordingSettings.FfmpegPath`.
 
@@ -21,9 +21,9 @@ Run this from your Unity component. The application creates and owns the camera 
 ```csharp
 using FFmpegMediaWriter;
 using UnityEngine;
-using UnityMediaRecorder;
+using UnityRuntimeCameraRecorder;
 
-var recorder = gameObject.AddComponent<global::UnityMediaRecorder.UnityMediaRecorder>();
+var recorder = gameObject.AddComponent<global::UnityRuntimeCameraRecorder.UnityRuntimeCameraRecorder>();
 recorder.RecordingCompleted += () => Debug.Log("MP4 ready");
 recorder.RecordingFailed += error => Debug.LogException(error);
 
@@ -98,7 +98,7 @@ recorder.StartRecording(sequence, listener, recordingSettings);
 
 The crossfade duration defaults to half a second. `NoTransition` performs an immediate cut. When several transition types are allowed, one is selected for each source change. A screen source adds the completed player frame, UI and cursor. A texture source reads its current GPU content without an extra encoder. Camera sources must be enabled and have a target texture. The recorder reads their completed GPU frames without changing their live rendering, previews or temporal effects. Invalid camera sources fail when capture starts. During a crossfade, the outgoing and incoming sources are blended on the GPU with complementary opacity.
 
-Copy `Resources/UnityMediaRecorderCrossFade.shader` into a Unity `Assets/Resources` folder when installing the recorder DLL manually. Unity packages should include this shader asset with the runtime assembly.
+Copy `Resources/UnityRuntimeCameraRecorderCrossFade.shader` into a Unity `Assets/Resources` folder when installing the recorder DLL manually. Unity packages should include this shader asset with the runtime assembly.
 
 ## PNG sequence instead of video
 
@@ -121,7 +121,7 @@ recorder.StopPngSequence();
 
 ## Build and extension
 
-Build with the .NET 10 SDK: `dotnet build UnityMediaRecorder.csproj -c Release -p:UnityManagedPath="YOUR_UNITY_MANAGED_DIRECTORY"`. Set `UnityManagedPath` to Unity's managed UnityEngine assembly directory. Output: `bin/Release/netstandard2.1/UnityMediaRecorder.dll`. Keep the three library repositories side by side for the project reference and native DLL copy. The current Direct3D/NVENC video backend remains Windows-only; Linux/macOS video recording requires a separately registered compatible backend.
+Build with the .NET 10 SDK: `dotnet build UnityRuntimeCameraRecorder.csproj -c Release -p:UnityManagedPath="YOUR_UNITY_MANAGED_DIRECTORY"`. Set `UnityManagedPath` to Unity's managed UnityEngine assembly directory. Output: `bin/Release/netstandard2.1/UnityRuntimeCameraRecorder.dll`. Keep the three library repositories side by side for the project reference and native DLL copy. The current Direct3D/NVENC video backend remains Windows-only; Linux/macOS video recording requires a separately registered compatible backend.
 
 To add a video engine, implement `VideoCaptureBackend`, validate codec selection in `ConfigureStreamFormat` and register a factory with `VideoCaptureBackendRegistry.Register`. Write packets through `VideoCaptureContext.WritePacket`, not directly to FFmpeg. No software encoding fallback is included.
 

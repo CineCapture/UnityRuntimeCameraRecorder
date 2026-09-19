@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using UnityMediaRecorder;
+using UnityRuntimeCameraRecorder;
 using FFmpegMediaWriter;
 
 static void Expect(bool condition, string message) { if (!condition) throw new Exception(message); }

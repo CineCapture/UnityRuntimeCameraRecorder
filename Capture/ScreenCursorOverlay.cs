@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
-namespace UnityMediaRecorder
+namespace UnityRuntimeCameraRecorder
 {
     // Draws a visible mouse pointer into a screen-capture render texture.
     internal sealed class ScreenCursorOverlay : IDisposable
