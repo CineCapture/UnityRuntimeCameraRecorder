@@ -14,6 +14,10 @@ Install FFmpeg separately and supply its executable path in `RecordingSettings.F
 
 Follow the [FFmpeg download and setup instructions](https://github.com/UnityRuntimeCameraRecorder/FFmpegMediaWriter#download-and-setup).
 
+## Getting started
+
+Follow the [UnityRuntimeCameraRecorder Getting Started guide](DEVELOPER_GUIDE.md) to integrate cameras, screen capture, textures, multi-source sequences, transitions, statistics and PNG capture step by step.
+
 ## Video example
 
 Run this from your Unity component. The application creates and owns the camera target. Camera sources must be enabled and have a target texture. Create the output directory and use unused filenames. The FFmpeg path is only an example.
