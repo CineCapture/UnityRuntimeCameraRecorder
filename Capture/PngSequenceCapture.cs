@@ -62,7 +62,7 @@ namespace UnityRuntimeCameraRecorder
             camera.enabled = true;
             _active = true;
             _captureRoutine = StartCoroutine(CaptureLoop());
-            MediaRecorderLog.WriteInfo(
+            RecorderLog.WriteInfo(
                 $"Asynchronous PNG sequence capture started at {settings.CapturesPerSecond:0.###} image(s) per second: {settings.OutputDirectory}");
         }
 
@@ -89,7 +89,7 @@ namespace UnityRuntimeCameraRecorder
             _frames = null;
             _writerTask = null;
 
-            MediaRecorderLog.WriteInfo(
+            RecorderLog.WriteInfo(
                 $"PNG sequence capture stopped: written={_capturedFrameCount}, dropped={_droppedFrameCount}.");
             if (_writerException != null)
             {
@@ -106,7 +106,7 @@ namespace UnityRuntimeCameraRecorder
             }
             catch (Exception exception)
             {
-                MediaRecorderLog.WriteError(exception);
+                RecorderLog.WriteError(exception);
             }
         }
 
@@ -168,7 +168,7 @@ namespace UnityRuntimeCameraRecorder
             if (request.hasError)
             {
                 _droppedFrameCount++;
-                MediaRecorderLog.WriteWarning("GPU readback failed for a PNG sequence frame.");
+                RecorderLog.WriteWarning("GPU readback failed for a PNG sequence frame.");
                 return;
             }
 

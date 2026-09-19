@@ -36,7 +36,7 @@ namespace UnityRuntimeCameraRecorder
             }
             catch (Exception exception)
             {
-                MediaRecorderLog.WriteError(exception);
+                RecorderLog.WriteError(exception);
             }
         }
     }

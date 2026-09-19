@@ -66,7 +66,6 @@ Options in `RecordingSettings`:
 
 - `VideoStreamFormat`: H.264 (library default) or HEVC. NVENC completion is asynchronous by default.
 - `SourceAntiAliasingSamples`: reports the application's source MSAA level in generated statistics. The recorder does not configure MSAA.
-- `GeneratePreviewImage = true` with `PreviewImagePath`: save a PNG just before video capture.
 - `KeepIntermediateFile = true` with `ArchivePath`: keep the MKV after successful MP4 creation.
 
 FFmpeg assembles encoded video and audio without recompressing video. Audio comes from Unity's mix.
@@ -102,7 +101,7 @@ recorder.StartRecording(sequence, listener, recordingSettings);
 
 The crossfade duration defaults to half a second. `NoTransition` performs an immediate cut. When several transition types are allowed, one is selected for each source change. A screen source adds the completed player frame, UI and cursor. A texture source reads its current GPU content without an extra encoder. Camera sources must be enabled and have a target texture. The recorder reads their completed GPU frames without changing their live rendering, previews or temporal effects. Invalid camera sources fail when capture starts. During a crossfade, the outgoing and incoming sources are blended on the GPU with complementary opacity.
 
-Copy `Resources/UnityRuntimeCameraRecorderCrossFade.shader` into a Unity `Assets/Resources` folder when installing the recorder DLL manually. Unity packages should include this shader asset with the runtime assembly.
+Copy `Resources/UnityRuntimeCameraRecorderCrossFade.shader` into a Unity `Assets/Resources` folder when the application uses `CrossFade`. It is optional for a single source or sequences that only use `NoTransition`. Unity packages should include this shader asset with the runtime assembly when crossfades are available.
 
 ## PNG sequence instead of video
 

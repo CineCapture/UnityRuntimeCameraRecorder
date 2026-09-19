@@ -11,7 +11,7 @@ Add these files to the Unity project:
 - `UnityRuntimeCameraRecorder.dll`
 - `Direct3DVideoEncoder.dll`
 - `FFmpegMediaWriter.dll`
-- `Resources/UnityRuntimeCameraRecorderCrossFade.shader`
+- `Resources/UnityRuntimeCameraRecorderCrossFade.shader` when using `CrossFade`
 
 Install FFmpeg separately. The current video backend requires Windows x64, Direct3D 11 and an NVIDIA GPU with NVENC.
 
@@ -217,15 +217,6 @@ settings.FlipVertically = true;
 
 ## 11. Generate optional files
 
-Save a PNG preview just before capture begins:
-
-```csharp
-settings.GeneratePreviewImage = true;
-settings.PreviewImagePath = Path.Combine(directory, "capture-preview.png");
-```
-
-The preview needs at least one camera or render-texture source.
-
 Keep the intermediate MKV after successful MP4 creation:
 
 ```csharp
@@ -316,14 +307,14 @@ catch (Exception exception)
 }
 ```
 
-Common causes are a disabled camera, a missing camera target, invalid dimensions, reused paths, missing executables or a missing crossfade shader.
+Common causes are a disabled camera, a missing camera target, invalid dimensions, reused paths, missing executables or a missing shader when `CrossFade` is enabled.
 
 ## 16. Connect library logging
 
 ```csharp
-MediaRecorderLog.Info = message => Debug.Log($"[Recorder] {message}");
-MediaRecorderLog.Warning = message => Debug.LogWarning($"[Recorder] {message}");
-MediaRecorderLog.Error = exception => Debug.LogException(exception);
+RecorderLog.Info = message => Debug.Log($"[Recorder] {message}");
+RecorderLog.Warning = message => Debug.LogWarning($"[Recorder] {message}");
+RecorderLog.Error = exception => Debug.LogException(exception);
 ```
 
 See the repository [README](README.md) for supported platforms, quality-profile details and backend extension points. See [UnitySample](https://github.com/UnityRuntimeCameraRecorder/UnitySample) for a complete editable scene.

@@ -65,7 +65,7 @@ namespace UnityRuntimeCameraRecorder
                 _videoBackend = VideoCaptureBackendRegistry.Create(gameObject);
                 _videoBackend.ConfigureStreamFormat(settings.VideoStreamFormat);
                 _videoStreamFormat = _videoBackend.StreamFormat;
-                MediaRecorderLog.WriteInfo($"Selected video backend: {_videoBackend.Name}.");
+                RecorderLog.WriteInfo($"Selected video backend: {_videoBackend.Name}.");
                 _writer = new FFmpegMediaWriter.FfmpegMediaWriter();
                 _audio = _listener.gameObject.AddComponent<UnityAudioCapture>();
                 _audio.Initialize(data => _writer?.WriteAudio(data) == true);
@@ -184,7 +184,7 @@ namespace UnityRuntimeCameraRecorder
             _waitingForAudio = false;
             try
             {
-                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, ArchivePath = _settings.ArchivePath, KeepIntermediateFile = _settings.KeepIntermediateFile, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, EncodedVideoHasPresentationTimestamps = true, AudioCodec = AudioEncodingCodec.Aac, AudioBitRate = _qualityProfile.AudioBitRate, OutputAudioSampleRate = _qualityProfile.AudioSampleRate, OutputAudioChannels = _qualityProfile.AudioChannels, Warning = MediaRecorderLog.WriteWarning, Error = MediaRecorderLog.WriteError });
+                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, ArchivePath = _settings.ArchivePath, KeepIntermediateFile = _settings.KeepIntermediateFile, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, EncodedVideoHasPresentationTimestamps = true, AudioCodec = AudioEncodingCodec.Aac, AudioBitRate = _qualityProfile.AudioBitRate, OutputAudioSampleRate = _qualityProfile.AudioSampleRate, OutputAudioChannels = _qualityProfile.AudioChannels, Warning = RecorderLog.WriteWarning, Error = RecorderLog.WriteError });
                 _writerStarted = true;
                 _waitingForPipes = true;
             }
@@ -201,7 +201,6 @@ namespace UnityRuntimeCameraRecorder
             {
                 try
                 {
-                    SavePreviewImage();
                     CaptureStarting?.Invoke();
                     StartVideoCapture();
                 }
@@ -227,52 +226,6 @@ namespace UnityRuntimeCameraRecorder
             _videoBackend.StartCapture(context);
             _captureStartTime = Time.realtimeSinceStartup;
             _videoCaptureStarted = true;
-        }
-
-        // Saves the prepared camera frame when preview-image generation is enabled for the session.
-        private void SavePreviewImage()
-        {
-            if (!_settings.GeneratePreviewImage)
-            {
-                return;
-            }
-
-            RenderTexture source = GetPreviewSource();
-            if (source == null)
-            {
-                throw new InvalidOperationException("Preview-image generation requires a camera or render-texture source.");
-            }
-
-            RenderTexture readableSource = source;
-            RenderTexture resolvedSource = null;
-            if (source.antiAliasing > 1)
-            {
-                resolvedSource = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
-                resolvedSource.Create();
-                Graphics.Blit(source, resolvedSource);
-                readableSource = resolvedSource;
-            }
-
-            RenderTexture previous = RenderTexture.active;
-            var image = new Texture2D(readableSource.width, readableSource.height, TextureFormat.RGBA32, false, false);
-            try
-            {
-                RenderTexture.active = readableSource;
-                image.ReadPixels(new Rect(0f, 0f, readableSource.width, readableSource.height), 0, 0);
-                image.Apply(false, false);
-                File.WriteAllBytes(_settings.PreviewImagePath, image.EncodeToPNG());
-                MediaRecorderLog.WriteInfo($"Recording preview saved: {_settings.PreviewImagePath}");
-            }
-            finally
-            {
-                RenderTexture.active = previous;
-                Destroy(image);
-                if (resolvedSource != null)
-                {
-                    resolvedSource.Release();
-                    Destroy(resolvedSource);
-                }
-            }
         }
 
         // Stops Unity capture components while leaving writer shutdown to the caller.
@@ -335,25 +288,6 @@ namespace UnityRuntimeCameraRecorder
             }
         }
 
-        // Finds the first source that can be read synchronously for a preview image.
-        private RenderTexture GetPreviewSource()
-        {
-            foreach (VideoSequenceSource source in _videoSequence.Sources)
-            {
-                if (source.Kind == VideoSequenceSource.SourceKind.Camera)
-                {
-                    return source.Camera.targetTexture;
-                }
-
-                if (source.Kind == VideoSequenceSource.SourceKind.Texture && source.Texture is RenderTexture renderTexture)
-                {
-                    return renderTexture;
-                }
-            }
-
-            return null;
-        }
-
         // Starts optional per-video statistics generation on a worker thread.
         private void StartStatistics()
         {
@@ -376,7 +310,7 @@ namespace UnityRuntimeCameraRecorder
             _statisticsTask = null;
             if (task.IsFaulted)
             {
-                MediaRecorderLog.WriteWarning("Cannot generate video statistics: " + task.Exception?.GetBaseException().Message);
+                RecorderLog.WriteWarning("Cannot generate video statistics: " + task.Exception?.GetBaseException().Message);
             }
             RecordingCompleted?.Invoke();
         }
@@ -389,7 +323,7 @@ namespace UnityRuntimeCameraRecorder
             ReleaseCaptureProducers();
             _writer?.Abort();
             ReleaseWriter();
-            MediaRecorderLog.WriteError(exception);
+            RecorderLog.WriteError(exception);
             RecordingFailed?.Invoke(exception);
         }
 
@@ -442,11 +376,6 @@ namespace UnityRuntimeCameraRecorder
             if (settings.KeepIntermediateFile && string.IsNullOrWhiteSpace(settings.ArchivePath))
             {
                 throw new ArgumentException("An archive path is required when keeping the intermediate file.", nameof(settings));
-            }
-
-            if (settings.GeneratePreviewImage && string.IsNullOrWhiteSpace(settings.PreviewImagePath))
-            {
-                throw new ArgumentException("A preview image path is required when generating a preview image.", nameof(settings));
             }
 
             if (settings.GenerateStatistics && string.IsNullOrWhiteSpace(settings.FfmpegPath))

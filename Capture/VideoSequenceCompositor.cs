@@ -30,13 +30,16 @@ namespace UnityRuntimeCameraRecorder
             ValidateCameraSources();
             _preFlipScreen = flipVertically;
             _random = settings.RandomSeed.HasValue ? new System.Random(settings.RandomSeed.Value) : new System.Random();
-            Shader crossFadeShader = Shader.Find("UnityRuntimeCameraRecorder/CrossFade");
-            if (crossFadeShader == null)
+            if (SourceCount > 1 && ContainsCrossFade(settings.Transitions))
             {
-                throw new InvalidOperationException("The UnityRuntimeCameraRecorder/CrossFade shader is missing from the player build.");
-            }
+                Shader crossFadeShader = Shader.Find("UnityRuntimeCameraRecorder/CrossFade");
+                if (crossFadeShader == null)
+                {
+                    throw new InvalidOperationException("The UnityRuntimeCameraRecorder/CrossFade shader is missing from the player build.");
+                }
 
-            _crossFadeMaterial = new Material(crossFadeShader) { hideFlags = HideFlags.HideAndDontSave };
+                _crossFadeMaterial = new Material(crossFadeShader) { hideFlags = HideFlags.HideAndDontSave };
+            }
             _currentIndex = settings.Order == VideoSequenceOrder.Random ? _random.Next(SourceCount) : 0;
             _firstResolved = CreateTarget(width, height, 1);
             _secondResolved = CreateTarget(width, height, 1);
@@ -150,9 +153,28 @@ namespace UnityRuntimeCameraRecorder
             return false;
         }
 
+        // Returns whether the configured transition pool can require the blend shader.
+        private static bool ContainsCrossFade(IReadOnlyList<VideoSequenceTransition> transitions)
+        {
+            foreach (VideoSequenceTransition transition in transitions)
+            {
+                if (transition == VideoSequenceTransition.CrossFade)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // Blends two sources with complementary weights in one GPU pass.
         private void DrawCrossFade(RenderTexture output, Texture outgoing, Texture incoming, float opacity)
         {
+            if (_crossFadeMaterial == null)
+            {
+                throw new InvalidOperationException("The crossfade material was not initialized.");
+            }
+
             _crossFadeMaterial.SetTexture("_IncomingTex", incoming);
             _crossFadeMaterial.SetFloat("_Blend", opacity);
             Graphics.Blit(outgoing, output, _crossFadeMaterial);

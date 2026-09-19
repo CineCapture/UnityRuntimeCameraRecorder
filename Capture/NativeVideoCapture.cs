@@ -107,18 +107,18 @@ namespace UnityRuntimeCameraRecorder
 
             Direct3DVideoEncoderStop(_sessionId);
             _diagnosticsJson = Marshal.PtrToStringAnsi(Direct3DVideoEncoderGetTelemetry(_sessionId));
-            MediaRecorderLog.WriteInfo("NATIVE_PIPELINE " + _diagnosticsJson);
+            RecorderLog.WriteInfo("NATIVE_PIPELINE " + _diagnosticsJson);
             string nativeError = GetNativeError(_sessionId);
             if (!string.IsNullOrEmpty(nativeError))
             {
-                MediaRecorderLog.WriteWarning("Native pipeline error: " + nativeError);
+                RecorderLog.WriteWarning("Native pipeline error: " + nativeError);
             }
-            MediaRecorderLog.WriteInfo($"Native capture frames: queued={Direct3DVideoEncoderGetQueuedFrameCount(_sessionId)}, " + $"encoded={Direct3DVideoEncoderGetEncodedFrameCount(_sessionId)}, " + $"dropped={Direct3DVideoEncoderGetDroppedFrameCount(_sessionId)}.");
+            RecorderLog.WriteInfo($"Native capture frames: queued={Direct3DVideoEncoderGetQueuedFrameCount(_sessionId)}, " + $"encoded={Direct3DVideoEncoderGetEncodedFrameCount(_sessionId)}, " + $"dropped={Direct3DVideoEncoderGetDroppedFrameCount(_sessionId)}.");
             Direct3DVideoEncoderDestroy(_sessionId);
             _sessionId = 0;
             if (_rejectedPackets > 0)
             {
-                MediaRecorderLog.WriteWarning($"Native capture rejected {_rejectedPackets} encoded packets during shutdown.");
+                RecorderLog.WriteWarning($"Native capture rejected {_rejectedPackets} encoded packets during shutdown.");
             }
 
             _packetCallback = null;
