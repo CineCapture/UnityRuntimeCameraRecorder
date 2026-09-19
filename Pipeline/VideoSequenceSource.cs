@@ -13,33 +13,35 @@ namespace UnityRuntimeCameraRecorder
             Texture
         }
 
-        private VideoSequenceSource(SourceKind kind, Camera camera, Texture texture)
+        private VideoSequenceSource(SourceKind kind, Camera camera, Texture texture, bool captureCursor)
         {
             Kind = kind;
             Camera = camera;
             Texture = texture;
+            CaptureCursor = captureCursor;
         }
 
         internal SourceKind Kind { get; }
         internal Camera Camera { get; }
         internal Texture Texture { get; }
+        internal bool CaptureCursor { get; }
 
         // Creates a source rendered from one Unity camera.
         public static VideoSequenceSource FromCamera(Camera camera)
         {
-            return new VideoSequenceSource(SourceKind.Camera, camera ?? throw new ArgumentNullException(nameof(camera)), null);
+            return new VideoSequenceSource(SourceKind.Camera, camera ?? throw new ArgumentNullException(nameof(camera)), null, false);
         }
 
         // Creates a source that reads the current content of a texture.
         public static VideoSequenceSource FromTexture(Texture texture)
         {
-            return new VideoSequenceSource(SourceKind.Texture, null, texture ?? throw new ArgumentNullException(nameof(texture)));
+            return new VideoSequenceSource(SourceKind.Texture, null, texture ?? throw new ArgumentNullException(nameof(texture)), false);
         }
 
-        // Creates a source from the completed player frame, including UI and cursor.
-        public static VideoSequenceSource FromScreen()
+        // Creates a source from the completed player frame and optionally overlays the cursor.
+        public static VideoSequenceSource FromScreen(bool captureCursor = true)
         {
-            return new VideoSequenceSource(SourceKind.Screen, null, null);
+            return new VideoSequenceSource(SourceKind.Screen, null, null, captureCursor);
         }
     }
 }

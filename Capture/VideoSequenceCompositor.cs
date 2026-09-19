@@ -27,6 +27,7 @@ namespace UnityRuntimeCameraRecorder
             _settings = settings;
             _sources = settings.Sources;
             RequiresScreen = ContainsScreenSource(_sources);
+            CapturesScreenCursor = ResolveScreenCursorSetting(_sources);
             ValidateCameraSources();
             _preFlipScreen = flipVertically;
             _random = settings.RandomSeed.HasValue ? new System.Random(settings.RandomSeed.Value) : new System.Random();
@@ -79,6 +80,7 @@ namespace UnityRuntimeCameraRecorder
         }
 
         internal bool RequiresScreen { get; private set; }
+        internal bool CapturesScreenCursor { get; private set; }
         private int SourceCount => _sources.Count;
 
         // Releases the compositor's materials and render textures.
@@ -151,6 +153,28 @@ namespace UnityRuntimeCameraRecorder
             }
 
             return false;
+        }
+
+        // Returns the shared cursor choice and rejects contradictory screen sources.
+        private static bool ResolveScreenCursorSetting(IReadOnlyList<VideoSequenceSource> sources)
+        {
+            bool? captureCursor = null;
+            foreach (VideoSequenceSource source in sources)
+            {
+                if (source.Kind != VideoSequenceSource.SourceKind.Screen)
+                {
+                    continue;
+                }
+
+                if (captureCursor.HasValue && captureCursor.Value != source.CaptureCursor)
+                {
+                    throw new InvalidOperationException("All screen sources in one sequence must use the same cursor setting.");
+                }
+
+                captureCursor = source.CaptureCursor;
+            }
+
+            return captureCursor ?? false;
         }
 
         // Returns whether the configured transition pool can require the blend shader.

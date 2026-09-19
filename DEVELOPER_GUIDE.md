@@ -127,10 +127,16 @@ Do not start another operation while `IsBusy` is true. `RecordingCompleted` is r
 
 ## 7. Choose another source type
 
-Record the completed player frame, including UI and cursor:
+Record the completed player frame, including UI and the cursor by default:
 
 ```csharp
 sequence.Sources = new[] { VideoSequenceSource.FromScreen() };
+```
+
+Exclude the cursor when required:
+
+```csharp
+sequence.Sources = new[] { VideoSequenceSource.FromScreen(captureCursor: false) };
 ```
 
 Record a texture produced by another rendering system:

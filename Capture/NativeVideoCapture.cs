@@ -222,7 +222,7 @@ namespace UnityRuntimeCameraRecorder
             }
         }
 
-        // Captures the completed application frame and overlays the visible system cursor.
+        // Captures the completed application frame and optionally overlays the system cursor.
         private void CaptureScreenFrame()
         {
             if (_screenTarget == null || _screenTarget.width != Screen.width || _screenTarget.height != Screen.height)
@@ -237,8 +237,11 @@ namespace UnityRuntimeCameraRecorder
             RenderTexture previousActive = RenderTexture.active;
             RenderTexture.active = null;
             ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenTarget);
-            _screenCursorOverlay ??= new ScreenCursorOverlay();
-            _screenCursorOverlay.Draw(_screenTarget);
+            if (_videoSequenceCompositor.CapturesScreenCursor)
+            {
+                _screenCursorOverlay ??= new ScreenCursorOverlay();
+                _screenCursorOverlay.Draw(_screenTarget);
+            }
             RenderTexture.active = previousActive;
         }
 

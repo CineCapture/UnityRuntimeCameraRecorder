@@ -56,7 +56,7 @@ Camera sources must remain enabled and have a valid `targetTexture`. Keep all so
 
 ## Main features
 
-- Camera, `Texture` and screen sources
+- Camera, `Texture` and screen sources with optional cursor capture
 - One source per MP4 or several sources edited into one MP4
 - Sequential or shuffled source order
 - GPU crossfades and immediate cuts
