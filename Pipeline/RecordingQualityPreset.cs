@@ -7,15 +7,15 @@ namespace UnityMediaRecorder
     // SDR constant-QP profile; video bitrate is determined by scene complexity.
     public sealed class RecordingQualityProfile
     {
-        private RecordingQualityProfile(int baseQp, int reduction, int audioBitRate)
-        { BaseQuantizationParameter = baseQp; ResolutionReduction = reduction; AudioBitRate = audioBitRate; }
+        private RecordingQualityProfile(int baseQp, int reduction, int audioBitRate, int nativeEncodingPreset)
+        { BaseQuantizationParameter = baseQp; ResolutionReduction = reduction; AudioBitRate = audioBitRate; NativeEncodingPreset = nativeEncodingPreset; }
         public int BaseQuantizationParameter { get; }
         public int ResolutionReduction { get; }
         public int QuantizationParameter => Math.Max(1, Math.Min(51, BaseQuantizationParameter - ResolutionReduction));
         public int VideoBitRate => 0;
         public int MaximumVideoBitRate => 0;
         public int VbvBufferSize => 0;
-        public int NativeEncodingPreset => 5;
+        public int NativeEncodingPreset { get; }
         public int ConstantQuality => 0;
         public string RateControl => "cqp";
         public int AudioBitRate { get; }
@@ -36,7 +36,7 @@ namespace UnityMediaRecorder
             }
             double diagonal = Math.Sqrt((double)width * width + (double)height * height);
             int reduction = (int)Math.Floor((1 - Math.Min(2000, diagonal) / 2000) * 10);
-            return new RecordingQualityProfile(baseQp, reduction, preset == RecordingQualityPreset.Low ? 128000 : 192000);
+            return new RecordingQualityProfile(baseQp, reduction, preset == RecordingQualityPreset.Low ? 128000 : 192000, 5);
         }
     }
 }

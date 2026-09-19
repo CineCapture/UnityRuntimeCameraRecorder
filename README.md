@@ -87,11 +87,11 @@ See [UnitySample](https://github.com/end3rbyte/UnitySample) for an editable scen
 
 `RecordingSettings.QualityPreset` accepts only `Low`, `Medium` or `High` (default). Video and audio settings are derived internally; no manual NVENC preset is exposed.
 
-| Profile | Base video QP (CQP) | Audio |
-|---|---:|---|
-| Low | 27 | AAC 128 kbit/s |
-| Medium | 23 | AAC 192 kbit/s |
-| High (default) | 16 | AAC 192 kbit/s |
+| Profile | NVENC preset | Base video QP (CQP) | Audio |
+|---|---:|---:|---|
+| Low | P5 | 27 | AAC 128 kbit/s |
+| Medium | P5 | 23 | AAC 192 kbit/s |
+| High (default) | P5 | 16 | AAC 192 kbit/s |
 
 H.264 is the default. Audio is 48000 Hz stereo. For any supported positive even resolution, effective QP is `clamp(baseQP - floor((1 - min(2000, sqrt(width*width + height*height))/2000)*10), 1, 51)`. FPS remains independent; CQP has no target video bitrate.
 

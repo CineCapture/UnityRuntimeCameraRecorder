@@ -210,7 +210,7 @@ namespace UnityMediaRecorder
         // Starts the selected backend that produces encoded video packets.
         private void StartVideoCapture()
         {
-            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _settings.FlipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
+            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _settings.OptimizeForConcurrentEncoding, _settings.FlipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _videoCaptureStarted = true;
         }

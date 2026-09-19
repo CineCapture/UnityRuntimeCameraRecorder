@@ -29,6 +29,7 @@ namespace UnityMediaRecorder
         private int _rejectedPackets;
         private Coroutine _captureCoroutine;
         private RenderTexture _screenTarget;
+        private ScreenCursorOverlay _screenCursorOverlay;
         private string _diagnosticsJson;
         public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
@@ -88,7 +89,8 @@ namespace UnityMediaRecorder
             _ownsTarget = context.PreparedTarget == null || context.FlipVertically || needsResolve || needsResize;
             _packetCallback = ReceivePacket;
             _renderEventFunction = Direct3DVideoEncoderGetRenderEventFunction();
-            _sessionId = Direct3DVideoEncoderStartWithConstantQP(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, (int)_streamFormat, context.QualityProfile.QuantizationParameter, _packetCallback);
+            int preset = context.OptimizeForConcurrentEncoding ? 4 : context.QualityProfile.NativeEncodingPreset;
+            _sessionId = Direct3DVideoEncoderStartWithConstantQPOptions(_target.GetNativeTexturePtr(), context.Width, context.Height, context.MaximumFrameRate, preset, (int)_streamFormat, context.QualityProfile.QuantizationParameter, context.OptimizeForConcurrentEncoding ? 1 : 0, _packetCallback);
             if (_sessionId == 0)
             {
                 throw new InvalidOperationException(GetNativeError(0));
@@ -165,6 +167,8 @@ namespace UnityMediaRecorder
                 Destroy(_screenTarget);
                 _screenTarget = null;
             }
+            _screenCursorOverlay?.Dispose();
+            _screenCursorOverlay = null;
         }
 
         // Creates one sRGB render texture compatible with Unity camera output.
@@ -221,6 +225,11 @@ namespace UnityMediaRecorder
                 RenderTexture previousActive = RenderTexture.active;
                 RenderTexture.active = null;
                 ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenTarget);
+                if (_screenCursorOverlay == null)
+                {
+                    _screenCursorOverlay = new ScreenCursorOverlay();
+                }
+                _screenCursorOverlay.Draw(_screenTarget);
                 RenderTexture.active = previousActive;
                 Graphics.Blit(_screenTarget, _renderTarget ?? _target);
             }
@@ -268,6 +277,9 @@ namespace UnityMediaRecorder
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Initializes the native encoder for a Unity texture.
         private static extern int Direct3DVideoEncoderStartWithConstantQP(IntPtr texture, int width, int height, int frameRate, int codec, int quantizationParameter, PacketCallback callback);
+        [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
+        // Initializes CQP encoding with explicit concurrency-aware NVENC options.
+        private static extern int Direct3DVideoEncoderStartWithConstantQPOptions(IntPtr texture, int width, int height, int frameRate, int preset, int codec, int quantizationParameter, int concurrentEncoding, PacketCallback callback);
         [DllImport("Direct3DVideoEncoder", CallingConvention = CallingConvention.StdCall)]
         // Queues a texture for processing by the Unity render thread callback.
         private static extern void Direct3DVideoEncoderQueueTexture(int sessionId, IntPtr texture, long timestampMicroseconds);
