@@ -62,19 +62,33 @@ Use a camera sequence to switch between multiple sources while producing one MP4
 ```csharp
 var sequence = new CameraSequenceSettings
 {
-    Cameras = new[] { camera1, camera2, camera3 },
+    Sources = new[]
+    {
+        VideoSequenceSource.FromCamera(camera1),
+        VideoSequenceSource.FromCamera(camera2),
+        VideoSequenceSource.FromTexture(gameRenderTexture),
+        VideoSequenceSource.FromScreen()
+    },
     Order = CameraSequenceOrder.Random,
-    MinimumShotDurationSeconds = 3f,
+    MinimumShotDurationSeconds = 4f,
     MaximumShotDurationSeconds = 8f,
-    CrossFadeDurationSeconds = 1f,
-    Transitions = new[] { CameraSequenceTransition.CrossFade },
+    CrossFadeDurationSeconds = 0.5f,
+    Transitions = new[]
+    {
+        CameraSequenceTransition.CrossFade,
+        CameraSequenceTransition.NoTransition
+    },
     RandomSeed = 42 // Optional: reproduce the same edit.
 };
 
 recorder.StartRecording(sequence, listener, recordingSettings);
 ```
 
-The crossfade duration defaults to one second. Outside transitions, only the active camera is rendered by the sequence. During a crossfade, the outgoing and incoming cameras are rendered and blended on the GPU with complementary opacity.
+The crossfade duration defaults to half a second. `NoTransition` performs an immediate cut. When several transition types are allowed, one is selected for each source change. A screen source adds the completed player frame, UI and cursor. A texture source reads its current GPU content without an extra encoder. Camera frames remain warm between visible shots so temporal post-processing does not resume from stale history. During a crossfade, the outgoing and incoming sources are blended on the GPU with complementary opacity.
+
+The legacy `Cameras` and `IncludeScreen` fields remain supported. Use `Sources` for new integrations that mix cameras, the player screen and render textures.
+
+Copy `Resources/UnityMediaRecorderCrossFade.shader` into a Unity `Assets/Resources` folder when installing the recorder DLL manually. Unity packages should include this shader asset with the runtime assembly.
 
 ## PNG sequence instead of video
 

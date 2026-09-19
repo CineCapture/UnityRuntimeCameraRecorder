@@ -99,11 +99,11 @@ namespace UnityMediaRecorder
 
             _captureIntervalTicks = Math.Max(1L, Stopwatch.Frequency / context.MaximumFrameRate);
             _nextCaptureTimestamp = 0;
-            _previousTarget = _camera.targetTexture;
-            _previousEnabled = _camera.enabled;
+            _previousTarget = _camera != null ? _camera.targetTexture : null;
+            _previousEnabled = _camera != null && _camera.enabled;
             if (context.CameraSequence != null)
             {
-                _cameraSequenceCompositor = new CameraSequenceCompositor(context.CameraSequence, context.Width, context.Height, context.AntiAliasingSamples, Time.realtimeSinceStartup);
+                _cameraSequenceCompositor = new CameraSequenceCompositor(context.CameraSequence, context.Width, context.Height, context.AntiAliasingSamples, context.FlipVertically, Time.realtimeSinceStartup);
             }
             else if (!context.CaptureScreen)
             {
@@ -218,31 +218,16 @@ namespace UnityMediaRecorder
 
             if (_context.CaptureScreen)
             {
-                if (_screenTarget == null || _screenTarget.width != Screen.width || _screenTarget.height != Screen.height)
-                {
-                    if (_screenTarget != null)
-                    {
-                        _screenTarget.Release();
-                        Destroy(_screenTarget);
-                    }
-
-                    _screenTarget = CreateTarget(Screen.width, Screen.height, 1);
-                }
-
-                RenderTexture previousActive = RenderTexture.active;
-                RenderTexture.active = null;
-                ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenTarget);
-                if (_screenCursorOverlay == null)
-                {
-                    _screenCursorOverlay = new ScreenCursorOverlay();
-                }
-                _screenCursorOverlay.Draw(_screenTarget);
-                RenderTexture.active = previousActive;
+                CaptureScreenFrame();
                 Graphics.Blit(_screenTarget, _renderTarget ?? _target);
             }
             else if (_cameraSequenceCompositor != null)
             {
-                _cameraSequenceCompositor.Render(_renderTarget ?? _target, Time.realtimeSinceStartup);
+                if (_cameraSequenceCompositor.RequiresScreen)
+                {
+                    CaptureScreenFrame();
+                }
+                _cameraSequenceCompositor.Render(_renderTarget ?? _target, _screenTarget, Time.realtimeSinceStartup);
             }
 
             if (_renderTarget != null)
@@ -265,6 +250,26 @@ namespace UnityMediaRecorder
             {
                 _nextCaptureTimestamp = timestamp + _captureIntervalTicks;
             }
+        }
+
+        // Captures the completed application frame and overlays the visible system cursor.
+        private void CaptureScreenFrame()
+        {
+            if (_screenTarget == null || _screenTarget.width != Screen.width || _screenTarget.height != Screen.height)
+            {
+                if (_screenTarget != null)
+                {
+                    _screenTarget.Release();
+                    Destroy(_screenTarget);
+                }
+                _screenTarget = CreateTarget(Screen.width, Screen.height, 1);
+            }
+            RenderTexture previousActive = RenderTexture.active;
+            RenderTexture.active = null;
+            ScreenCapture.CaptureScreenshotIntoRenderTexture(_screenTarget);
+            _screenCursorOverlay ??= new ScreenCursorOverlay();
+            _screenCursorOverlay.Draw(_screenTarget);
+            RenderTexture.active = previousActive;
         }
 
         // Copies a compressed native packet into the bounded FFmpeg queue.

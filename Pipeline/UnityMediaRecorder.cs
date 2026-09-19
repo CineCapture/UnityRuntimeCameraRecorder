@@ -61,12 +61,9 @@ namespace UnityMediaRecorder
                 throw new InvalidOperationException("The media recorder is already busy.");
             }
             ValidateCameraSequence(sequence);
-            ValidateArguments(sequence.Cameras[0], listener, settings);
-            if (settings.CaptureScreen)
-            {
-                throw new ArgumentException("A camera sequence cannot use screen capture.", nameof(settings));
-            }
-            StartRecordingCore(sequence.Cameras[0], listener, settings, null, sequence);
+            Camera camera = GetFirstSequenceCamera(sequence);
+            ValidateArguments(camera, listener, settings, true);
+            StartRecordingCore(camera, listener, settings, null, sequence);
         }
 
         // Creates shared resources for single-camera and camera-sequence recordings.
@@ -403,9 +400,9 @@ namespace UnityMediaRecorder
         }
 
         // Rejects missing or invalid session arguments before resources are allocated.
-        private static void ValidateArguments(Camera camera, AudioListener listener, RecordingSettings settings)
+        private static void ValidateArguments(Camera camera, AudioListener listener, RecordingSettings settings, bool allowMissingCamera = false)
         {
-            if (camera == null)
+            if (camera == null && !allowMissingCamera)
             {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -469,15 +466,29 @@ namespace UnityMediaRecorder
         // Rejects camera sequences that cannot produce a valid transition schedule.
         private static void ValidateCameraSequence(CameraSequenceSettings sequence)
         {
-            if (sequence?.Cameras == null || sequence.Cameras.Count < 2)
+            int sourceCount = GetSequenceSourceCount(sequence);
+            if (sourceCount < 2)
             {
-                throw new ArgumentException("A camera sequence requires at least two cameras.", nameof(sequence));
+                throw new ArgumentException("A camera sequence requires at least two camera or screen sources.", nameof(sequence));
             }
-            foreach (Camera camera in sequence.Cameras)
+            if (sequence.Sources != null)
             {
-                if (camera == null)
+                foreach (VideoSequenceSource source in sequence.Sources)
                 {
-                    throw new ArgumentException("A camera sequence cannot contain a null camera.", nameof(sequence));
+                    if (source == null)
+                    {
+                        throw new ArgumentException("A video sequence cannot contain a null source.", nameof(sequence));
+                    }
+                }
+            }
+            else
+            {
+                foreach (Camera camera in sequence.Cameras)
+                {
+                    if (camera == null)
+                    {
+                        throw new ArgumentException("A camera sequence cannot contain a null camera.", nameof(sequence));
+                    }
                 }
             }
             if (sequence.MinimumShotDurationSeconds <= 0 || sequence.MaximumShotDurationSeconds < sequence.MinimumShotDurationSeconds)
@@ -492,6 +503,43 @@ namespace UnityMediaRecorder
             {
                 throw new ArgumentException("At least one camera transition is required.", nameof(sequence));
             }
+            foreach (CameraSequenceTransition transition in sequence.Transitions)
+            {
+                if (transition != CameraSequenceTransition.CrossFade && transition != CameraSequenceTransition.NoTransition)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(sequence), "The sequence contains an unsupported transition.");
+                }
+            }
+        }
+
+        // Returns the number of explicit or legacy sequence sources.
+        private static int GetSequenceSourceCount(CameraSequenceSettings sequence)
+        {
+            if (sequence == null)
+            {
+                return 0;
+            }
+
+            return sequence.Sources?.Count ?? ((sequence.Cameras?.Count ?? 0) + (sequence.IncludeScreen ? 1 : 0));
+        }
+
+        // Finds a camera used for compatibility with the shared capture context.
+        private static Camera GetFirstSequenceCamera(CameraSequenceSettings sequence)
+        {
+            if (sequence.Sources != null)
+            {
+                foreach (VideoSequenceSource source in sequence.Sources)
+                {
+                    if (source != null && source.Kind == VideoSequenceSource.SourceKind.Camera)
+                    {
+                        return source.Camera;
+                    }
+                }
+
+                return null;
+            }
+
+            return sequence.Cameras != null && sequence.Cameras.Count > 0 ? sequence.Cameras[0] : null;
         }
 
         // Rejects missing or invalid PNG sequence arguments before resources are allocated.

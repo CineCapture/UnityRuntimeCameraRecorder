@@ -8,28 +8,45 @@ namespace UnityMediaRecorder
     internal sealed class CameraSequenceCompositor : IDisposable
     {
         private readonly CameraSequenceSettings _settings;
+        private readonly IReadOnlyList<VideoSequenceSource> _sources;
         private readonly System.Random _random;
+        private readonly List<int> _randomOrder = new List<int>();
         private readonly List<CameraState> _cameraStates = new List<CameraState>();
         private readonly RenderTexture _firstTarget;
         private readonly RenderTexture _secondTarget;
         private readonly RenderTexture _firstResolved;
         private readonly RenderTexture _secondResolved;
+        private readonly Material _crossFadeMaterial;
+        private readonly bool _preFlipScreen;
         private int _currentIndex;
         private int _nextIndex = -1;
         private float _shotEndTime;
         private float _transitionStartTime;
+        private CameraSequenceTransition _activeTransition;
 
         // Preserves camera state and allocates reusable render targets.
-        internal CameraSequenceCompositor(CameraSequenceSettings settings, int width, int height, int antiAliasingSamples, float startTime)
+        internal CameraSequenceCompositor(CameraSequenceSettings settings, int width, int height, int antiAliasingSamples, bool flipVertically, float startTime)
         {
             _settings = settings;
+            _sources = CreateSources(settings);
+            _preFlipScreen = flipVertically;
             _random = settings.RandomSeed.HasValue ? new System.Random(settings.RandomSeed.Value) : new System.Random();
-            foreach (Camera camera in settings.Cameras)
+            Shader crossFadeShader = Shader.Find("UnityMediaRecorder/CrossFade");
+            if (crossFadeShader == null)
             {
-                _cameraStates.Add(new CameraState(camera));
-                camera.enabled = false;
+                throw new InvalidOperationException("The UnityMediaRecorder/CrossFade shader is missing from the player build.");
             }
-            _currentIndex = settings.Order == CameraSequenceOrder.Random ? _random.Next(settings.Cameras.Count) : 0;
+
+            _crossFadeMaterial = new Material(crossFadeShader) { hideFlags = HideFlags.HideAndDontSave };
+            foreach (VideoSequenceSource source in _sources)
+            {
+                if (source.Kind == VideoSequenceSource.SourceKind.Camera)
+                {
+                    _cameraStates.Add(new CameraState(source.Camera));
+                    source.Camera.enabled = false;
+                }
+            }
+            _currentIndex = settings.Order == CameraSequenceOrder.Random ? _random.Next(SourceCount) : 0;
             _firstTarget = CreateTarget(width, height, antiAliasingSamples);
             _secondTarget = CreateTarget(width, height, antiAliasingSamples);
             _firstResolved = CreateTarget(width, height, 1);
@@ -38,14 +55,20 @@ namespace UnityMediaRecorder
         }
 
         // Renders the active camera and blends the next camera during a transition.
-        internal void Render(RenderTexture output, float time)
+        internal void Render(RenderTexture output, RenderTexture screen, float time)
         {
             if (_nextIndex < 0 && time >= _shotEndTime)
             {
                 _nextIndex = SelectNextIndex();
+                _activeTransition = SelectTransition();
                 _transitionStartTime = time;
+                if (_activeTransition == CameraSequenceTransition.NoTransition)
+                {
+                    CompleteTransition(time);
+                }
             }
-            RenderCamera(_settings.Cameras[_currentIndex], _firstTarget, _firstResolved);
+            WarmInactiveCameras();
+            RenderSource(_currentIndex, screen, _firstTarget, _firstResolved);
             Graphics.Blit(_firstResolved, output);
             if (_nextIndex < 0)
             {
@@ -53,15 +76,32 @@ namespace UnityMediaRecorder
             }
             float duration = Math.Max(0.001f, _settings.CrossFadeDurationSeconds);
             float opacity = Mathf.Clamp01((time - _transitionStartTime) / duration);
-            RenderCamera(_settings.Cameras[_nextIndex], _secondTarget, _secondResolved);
-            DrawOverlay(output, _secondResolved, opacity);
+            RenderSource(_nextIndex, screen, _secondTarget, _secondResolved);
             if (opacity >= 1f)
             {
-                _currentIndex = _nextIndex;
-                _nextIndex = -1;
-                _shotEndTime = time + NextShotDuration();
+                Graphics.Blit(_secondResolved, output);
+                CompleteTransition(time);
+                return;
+            }
+
+            DrawCrossFade(output, _firstResolved, _secondResolved, opacity);
+        }
+
+        // Keeps temporal post-processing histories current for cameras between visible shots.
+        private void WarmInactiveCameras()
+        {
+            for (int index = 0; index < _sources.Count; index++)
+            {
+                VideoSequenceSource source = _sources[index];
+                if (index != _currentIndex && index != _nextIndex && source.Kind == VideoSequenceSource.SourceKind.Camera)
+                {
+                    RenderCamera(source.Camera, _secondTarget, _secondResolved);
+                }
             }
         }
+
+        internal bool RequiresScreen { get; private set; }
+        private int SourceCount => _sources.Count;
 
         // Restores every source camera and releases owned render textures.
         public void Dispose()
@@ -74,6 +114,7 @@ namespace UnityMediaRecorder
             Release(_secondTarget);
             Release(_firstResolved);
             Release(_secondResolved);
+            UnityEngine.Object.Destroy(_crossFadeMaterial);
         }
 
         // Renders one source camera and resolves MSAA into a sampleable texture.
@@ -86,17 +127,65 @@ namespace UnityMediaRecorder
             Graphics.Blit(target, resolved);
         }
 
-        // Alpha-blends the incoming camera over the current output.
-        private static void DrawOverlay(RenderTexture output, Texture incoming, float opacity)
+        // Renders either a Unity camera or the captured application screen.
+        private void RenderSource(int index, RenderTexture screen, RenderTexture target, RenderTexture resolved)
         {
-            RenderTexture previous = RenderTexture.active;
-            Graphics.SetRenderTarget(output);
-            GL.PushMatrix();
-            GL.LoadPixelMatrix(0, output.width, output.height, 0);
-            Graphics.DrawTexture(new Rect(0, 0, output.width, output.height), incoming,
-                new Rect(0, 0, 1, 1), 0, 0, 0, 0, new Color(1, 1, 1, opacity));
-            GL.PopMatrix();
-            RenderTexture.active = previous;
+            VideoSequenceSource source = _sources[index];
+            if (source.Kind == VideoSequenceSource.SourceKind.Camera)
+            {
+                RenderCamera(source.Camera, target, resolved);
+                return;
+            }
+            if (source.Kind == VideoSequenceSource.SourceKind.Texture)
+            {
+                Graphics.Blit(source.Texture, resolved);
+                return;
+            }
+            if (screen == null)
+            {
+                throw new InvalidOperationException("The camera sequence screen source is unavailable.");
+            }
+            if (_preFlipScreen)
+            {
+                Graphics.Blit(screen, resolved, new Vector2(1f, -1f), new Vector2(0f, 1f));
+            }
+            else
+            {
+                Graphics.Blit(screen, resolved);
+            }
+        }
+
+        // Converts the explicit source list or the legacy camera fields to one ordered list.
+        private IReadOnlyList<VideoSequenceSource> CreateSources(CameraSequenceSettings settings)
+        {
+            var sources = new List<VideoSequenceSource>();
+            if (settings.Sources != null)
+            {
+                sources.AddRange(settings.Sources);
+            }
+            else
+            {
+                foreach (Camera camera in settings.Cameras)
+                {
+                    sources.Add(VideoSequenceSource.FromCamera(camera));
+                }
+
+                if (settings.IncludeScreen)
+                {
+                    sources.Add(VideoSequenceSource.FromScreen());
+                }
+            }
+
+            RequiresScreen = sources.Exists(source => source.Kind == VideoSequenceSource.SourceKind.Screen);
+            return sources;
+        }
+
+        // Blends two sources with complementary weights in one GPU pass.
+        private void DrawCrossFade(RenderTexture output, Texture outgoing, Texture incoming, float opacity)
+        {
+            _crossFadeMaterial.SetTexture("_IncomingTex", incoming);
+            _crossFadeMaterial.SetFloat("_Blend", opacity);
+            Graphics.Blit(outgoing, output, _crossFadeMaterial);
         }
 
         // Selects the next sequential or random camera without immediate repetition.
@@ -104,10 +193,50 @@ namespace UnityMediaRecorder
         {
             if (_settings.Order == CameraSequenceOrder.Sequential)
             {
-                return (_currentIndex + 1) % _settings.Cameras.Count;
+                return (_currentIndex + 1) % SourceCount;
             }
-            int candidate = _random.Next(_settings.Cameras.Count - 1);
-            return candidate >= _currentIndex ? candidate + 1 : candidate;
+
+            if (_randomOrder.Count == 0)
+            {
+                RefillRandomOrder();
+            }
+
+            int next = _randomOrder[0];
+            _randomOrder.RemoveAt(0);
+            return next;
+        }
+
+        // Selects one configured transition with the sequence random generator.
+        private CameraSequenceTransition SelectTransition()
+        {
+            int index = _settings.Transitions.Count == 1 ? 0 : _random.Next(_settings.Transitions.Count);
+            return _settings.Transitions[index];
+        }
+
+        // Promotes the incoming source and schedules its next cut or transition.
+        private void CompleteTransition(float time)
+        {
+            _currentIndex = _nextIndex;
+            _nextIndex = -1;
+            _shotEndTime = time + NextShotDuration();
+        }
+
+        // Shuffles every source except the currently visible one into the next random cycle.
+        private void RefillRandomOrder()
+        {
+            for (int index = 0; index < SourceCount; index++)
+            {
+                if (index != _currentIndex)
+                {
+                    _randomOrder.Add(index);
+                }
+            }
+
+            for (int index = _randomOrder.Count - 1; index > 0; index--)
+            {
+                int swapIndex = _random.Next(index + 1);
+                (_randomOrder[index], _randomOrder[swapIndex]) = (_randomOrder[swapIndex], _randomOrder[index]);
+            }
         }
 
         // Draws the next full-shot duration from the configured inclusive range.

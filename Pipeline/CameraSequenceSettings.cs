@@ -13,17 +13,20 @@ namespace UnityMediaRecorder
     // Lists transitions that may be selected between two cameras.
     public enum CameraSequenceTransition
     {
-        CrossFade
+        CrossFade,
+        NoTransition
     }
 
     // Configures several Unity cameras as one edited video stream.
     public sealed class CameraSequenceSettings
     {
+        public IReadOnlyList<VideoSequenceSource> Sources { get; set; }
         public IReadOnlyList<Camera> Cameras { get; set; }
+        public bool IncludeScreen { get; set; }
         public CameraSequenceOrder Order { get; set; } = CameraSequenceOrder.Sequential;
-        public float MinimumShotDurationSeconds { get; set; } = 3f;
+        public float MinimumShotDurationSeconds { get; set; } = 4f;
         public float MaximumShotDurationSeconds { get; set; } = 8f;
-        public float CrossFadeDurationSeconds { get; set; } = 1f;
+        public float CrossFadeDurationSeconds { get; set; } = 0.5f;
         public IReadOnlyList<CameraSequenceTransition> Transitions { get; set; } = new[] { CameraSequenceTransition.CrossFade };
         public int? RandomSeed { get; set; }
     }
