@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using FFmpegMediaWriter;
 using UnityEngine;
 
@@ -23,6 +24,9 @@ namespace UnityMediaRecorder
         private bool _writerStarted;
         private PngSequenceCapture _pngSequenceCapture;
         private int _lastCapturedPngFrameCount;
+        private float _captureStartTime;
+        private float _captureDuration;
+        private Task _statisticsTask;
         public event Action CaptureStarted;
         public event Action CaptureStarting;
         public event Action FinalizationStarted;
@@ -30,7 +34,7 @@ namespace UnityMediaRecorder
         public event Action<Exception> RecordingFailed;
         public bool IsCapturing => _writerStarted && !IsFinalizing || _waitingForAudio || _waitingForPipes || _pngSequenceCapture != null;
         public bool IsFinalizing => _writer?.IsFinalizing == true;
-        public bool IsBusy => IsCapturing || IsFinalizing;
+        public bool IsBusy => IsCapturing || IsFinalizing || _statisticsTask != null;
         public string ActiveVideoBackendName => _videoBackend?.Name;
         // Retains optional backend telemetry after capture resources have been released.
         public string LastVideoDiagnosticsJson { get; private set; }
@@ -139,6 +143,10 @@ namespace UnityMediaRecorder
             {
                 CompleteFinalization();
             }
+            if (_statisticsTask?.IsCompleted == true)
+            {
+                CompleteStatistics();
+            }
         }
 
         // Releases active processes and capture resources when the component is destroyed.
@@ -210,8 +218,10 @@ namespace UnityMediaRecorder
         // Starts the selected backend that produces encoded video packets.
         private void StartVideoCapture()
         {
-            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _settings.OptimizeForConcurrentEncoding, _settings.FlipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
+            bool flipVertically = _settings.FlipVertically ?? (!_settings.CaptureScreen && SystemInfo.graphicsUVStartsAtTop);
+            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _settings.OptimizeForConcurrentEncoding, flipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
+            _captureStartTime = Time.realtimeSinceStartup;
             _videoCaptureStarted = true;
         }
 
@@ -268,6 +278,7 @@ namespace UnityMediaRecorder
             {
                 if (_videoCaptureStarted)
                 {
+                    _captureDuration = Mathf.Max(0, Time.realtimeSinceStartup - _captureStartTime);
                     _videoBackend.StopCapture();
                     LastVideoDiagnosticsJson = _videoBackend.DiagnosticsJson;
                 }
@@ -305,12 +316,46 @@ namespace UnityMediaRecorder
             {
                 _writer.CompleteFinalization();
                 ReleaseWriter();
-                RecordingCompleted?.Invoke();
+                if (_settings.GenerateStatistics)
+                {
+                    StartStatistics();
+                }
+                else
+                {
+                    RecordingCompleted?.Invoke();
+                }
             }
             catch (Exception exception)
             {
                 Fail(exception);
             }
+        }
+
+        // Starts optional per-video statistics generation on a worker thread.
+        private void StartStatistics()
+        {
+            string ffprobePath = _settings.FfprobePath;
+            if (string.IsNullOrWhiteSpace(ffprobePath))
+            {
+                ffprobePath = Path.Combine(Path.GetDirectoryName(_settings.FfmpegPath) ?? string.Empty, "ffprobe.exe");
+            }
+            string statisticsPath = string.IsNullOrWhiteSpace(_settings.StatisticsPath)
+                ? Path.ChangeExtension(_settings.OutputPath, ".stats.txt") : _settings.StatisticsPath;
+            var snapshot = new VideoStatisticsSnapshot(_settings, _qualityProfile, LastVideoDiagnosticsJson,
+                _captureDuration, QualitySettings.vSyncCount, ffprobePath, statisticsPath);
+            _statisticsTask = Task.Run(snapshot.Write);
+        }
+
+        // Reports completion after optional statistics generation has finished.
+        private void CompleteStatistics()
+        {
+            Task task = _statisticsTask;
+            _statisticsTask = null;
+            if (task.IsFaulted)
+            {
+                MediaRecorderLog.WriteWarning("Cannot generate video statistics: " + task.Exception?.GetBaseException().Message);
+            }
+            RecordingCompleted?.Invoke();
         }
 
         // Reports a session failure after releasing active capture resources.
@@ -384,6 +429,11 @@ namespace UnityMediaRecorder
             if (settings.GeneratePreviewImage && string.IsNullOrWhiteSpace(settings.PreviewImagePath))
             {
                 throw new ArgumentException("A preview image path is required when generating a preview image.", nameof(settings));
+            }
+
+            if (settings.GenerateStatistics && string.IsNullOrWhiteSpace(settings.FfmpegPath))
+            {
+                throw new ArgumentException("Statistics generation requires FFmpeg and FFprobe paths.", nameof(settings));
             }
 
             if (string.IsNullOrWhiteSpace(settings.OutputPath))

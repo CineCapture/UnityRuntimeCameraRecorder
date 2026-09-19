@@ -11,6 +11,9 @@ namespace UnityMediaRecorder
         public bool KeepIntermediateFile { get; set; }
         public bool GeneratePreviewImage { get; set; }
         public string PreviewImagePath { get; set; }
+        public bool GenerateStatistics { get; set; }
+        public string StatisticsPath { get; set; }
+        public string FfprobePath { get; set; }
         public string OutputPath { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }
@@ -21,7 +24,7 @@ namespace UnityMediaRecorder
         public bool OptimizeForConcurrentEncoding { get; set; }
         // HDR sources are explicitly unsupported by the SDR profile.
         public bool CaptureHdr { get; set; }
-        public bool FlipVertically { get; set; }
+        public bool? FlipVertically { get; set; }
         public bool CaptureScreen { get; set; }
     }
 }
