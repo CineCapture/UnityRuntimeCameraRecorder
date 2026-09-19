@@ -16,6 +16,7 @@ namespace UnityMediaRecorder
             int maximumFrameRate,
             int antiAliasingSamples,
             RecordingQualityProfile qualityProfile,
+            CameraSequenceSettings cameraSequence,
             bool optimizeForConcurrentEncoding,
             bool flipVertically,
             bool captureScreen,
@@ -28,6 +29,7 @@ namespace UnityMediaRecorder
             MaximumFrameRate = maximumFrameRate;
             AntiAliasingSamples = antiAliasingSamples;
             QualityProfile = qualityProfile;
+            CameraSequence = cameraSequence;
             OptimizeForConcurrentEncoding = optimizeForConcurrentEncoding;
             FlipVertically = flipVertically;
             CaptureScreen = captureScreen;
@@ -41,6 +43,7 @@ namespace UnityMediaRecorder
         public int MaximumFrameRate { get; }
         public int AntiAliasingSamples { get; }
         public RecordingQualityProfile QualityProfile { get; }
+        public CameraSequenceSettings CameraSequence { get; }
         public bool OptimizeForConcurrentEncoding { get; }
         public bool FlipVertically { get; }
         public bool CaptureScreen { get; }

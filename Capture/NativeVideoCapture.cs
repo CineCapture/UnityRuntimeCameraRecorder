@@ -30,6 +30,7 @@ namespace UnityMediaRecorder
         private Coroutine _captureCoroutine;
         private RenderTexture _screenTarget;
         private ScreenCursorOverlay _screenCursorOverlay;
+        private CameraSequenceCompositor _cameraSequenceCompositor;
         private string _diagnosticsJson;
         public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
@@ -100,14 +101,18 @@ namespace UnityMediaRecorder
             _nextCaptureTimestamp = 0;
             _previousTarget = _camera.targetTexture;
             _previousEnabled = _camera.enabled;
-            if (!context.CaptureScreen)
+            if (context.CameraSequence != null)
+            {
+                _cameraSequenceCompositor = new CameraSequenceCompositor(context.CameraSequence, context.Width, context.Height, context.AntiAliasingSamples, Time.realtimeSinceStartup);
+            }
+            else if (!context.CaptureScreen)
             {
                 _camera.targetTexture = _renderTarget ?? _target;
             }
 
             _active = true;
             _captureCoroutine = StartCoroutine(CaptureFramesAtEndOfFrame());
-            if (!context.CaptureScreen)
+            if (context.CameraSequence == null && !context.CaptureScreen)
             {
                 _camera.enabled = true;
             }
@@ -123,7 +128,7 @@ namespace UnityMediaRecorder
                 _captureCoroutine = null;
             }
 
-            if (!_context.CaptureScreen)
+            if (_context.CameraSequence == null && !_context.CaptureScreen)
             {
                 _camera.enabled = _previousEnabled;
                 _camera.targetTexture = _previousTarget;
@@ -169,6 +174,8 @@ namespace UnityMediaRecorder
             }
             _screenCursorOverlay?.Dispose();
             _screenCursorOverlay = null;
+            _cameraSequenceCompositor?.Dispose();
+            _cameraSequenceCompositor = null;
         }
 
         // Creates one sRGB render texture compatible with Unity camera output.
@@ -232,6 +239,10 @@ namespace UnityMediaRecorder
                 _screenCursorOverlay.Draw(_screenTarget);
                 RenderTexture.active = previousActive;
                 Graphics.Blit(_screenTarget, _renderTarget ?? _target);
+            }
+            else if (_cameraSequenceCompositor != null)
+            {
+                _cameraSequenceCompositor.Render(_renderTarget ?? _target, Time.realtimeSinceStartup);
             }
 
             if (_renderTarget != null)

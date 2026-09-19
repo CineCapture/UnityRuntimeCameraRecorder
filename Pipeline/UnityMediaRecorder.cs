@@ -27,6 +27,7 @@ namespace UnityMediaRecorder
         private float _captureStartTime;
         private float _captureDuration;
         private Task _statisticsTask;
+        private CameraSequenceSettings _cameraSequence;
         public event Action CaptureStarted;
         public event Action CaptureStarting;
         public event Action FinalizationStarted;
@@ -49,6 +50,28 @@ namespace UnityMediaRecorder
             }
 
             ValidateArguments(camera, listener, settings);
+            StartRecordingCore(camera, listener, settings, preparedVideoTarget, null);
+        }
+
+        // Starts one output that automatically switches between several source cameras.
+        public void StartRecording(CameraSequenceSettings sequence, AudioListener listener, RecordingSettings settings)
+        {
+            if (IsBusy)
+            {
+                throw new InvalidOperationException("The media recorder is already busy.");
+            }
+            ValidateCameraSequence(sequence);
+            ValidateArguments(sequence.Cameras[0], listener, settings);
+            if (settings.CaptureScreen)
+            {
+                throw new ArgumentException("A camera sequence cannot use screen capture.", nameof(settings));
+            }
+            StartRecordingCore(sequence.Cameras[0], listener, settings, null, sequence);
+        }
+
+        // Creates shared resources for single-camera and camera-sequence recordings.
+        private void StartRecordingCore(Camera camera, AudioListener listener, RecordingSettings settings, RenderTexture preparedVideoTarget, CameraSequenceSettings sequence)
+        {
             if (settings.CaptureHdr) throw new NotSupportedException("HDR recording is not supported by the SDR quality profile.");
             LastVideoDiagnosticsJson = null;
             _camera = camera;
@@ -56,6 +79,7 @@ namespace UnityMediaRecorder
             _qualityProfile = RecordingQualityProfile.FromPreset(settings.QualityPreset, settings.Width, settings.Height, settings.MaximumFrameRate);
             _settings = settings;
             _preparedVideoTarget = preparedVideoTarget;
+            _cameraSequence = sequence;
             try
             {
                 _videoBackend = VideoCaptureBackendRegistry.Create(gameObject);
@@ -219,7 +243,7 @@ namespace UnityMediaRecorder
         private void StartVideoCapture()
         {
             bool flipVertically = _settings.FlipVertically ?? (!_settings.CaptureScreen && SystemInfo.graphicsUVStartsAtTop);
-            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _settings.OptimizeForConcurrentEncoding, flipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
+            var context = new VideoCaptureContext(_camera, _settings.Width, _settings.Height, _settings.MaximumFrameRate, _settings.AntiAliasingSamples, _qualityProfile, _cameraSequence, _settings.OptimizeForConcurrentEncoding, flipVertically, _settings.CaptureScreen, _preparedVideoTarget, _writer.WriteVideoPacket);
             _videoBackend.StartCapture(context);
             _captureStartTime = Time.realtimeSinceStartup;
             _videoCaptureStarted = true;
@@ -439,6 +463,34 @@ namespace UnityMediaRecorder
             if (string.IsNullOrWhiteSpace(settings.OutputPath))
             {
                 throw new ArgumentException("An output path is required.", nameof(settings));
+            }
+        }
+
+        // Rejects camera sequences that cannot produce a valid transition schedule.
+        private static void ValidateCameraSequence(CameraSequenceSettings sequence)
+        {
+            if (sequence?.Cameras == null || sequence.Cameras.Count < 2)
+            {
+                throw new ArgumentException("A camera sequence requires at least two cameras.", nameof(sequence));
+            }
+            foreach (Camera camera in sequence.Cameras)
+            {
+                if (camera == null)
+                {
+                    throw new ArgumentException("A camera sequence cannot contain a null camera.", nameof(sequence));
+                }
+            }
+            if (sequence.MinimumShotDurationSeconds <= 0 || sequence.MaximumShotDurationSeconds < sequence.MinimumShotDurationSeconds)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sequence), "The shot-duration range is invalid.");
+            }
+            if (sequence.CrossFadeDurationSeconds < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sequence), "Crossfade duration cannot be negative.");
+            }
+            if (sequence.Transitions == null || sequence.Transitions.Count == 0)
+            {
+                throw new ArgumentException("At least one camera transition is required.", nameof(sequence));
             }
         }
 

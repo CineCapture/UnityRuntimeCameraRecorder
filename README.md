@@ -37,8 +37,7 @@ recorder.StartRecording(camera, listener, new RecordingSettings
     MaximumFrameRate = 60,
     AntiAliasingSamples = 4,
     QualityPreset = RecordingQualityPreset.High,
-    VideoStreamFormat = VideoStreamFormat.Hevc,
-    FlipVertically = SystemInfo.graphicsUVStartsAtTop
+    VideoStreamFormat = VideoStreamFormat.Hevc
 });
 
 // Later: stop capture, then wait for completion or failure.
@@ -55,6 +54,27 @@ Options in `RecordingSettings`:
 - `KeepIntermediateFile = true` with `ArchivePath`: keep the MKV after successful MP4 creation.
 
 FFmpeg assembles encoded video and audio without recompressing video. Audio comes from Unity's mix.
+
+## One video from multiple cameras
+
+Use a camera sequence to switch between multiple sources while producing one MP4 and one NVENC session. Sequential order follows the list; random order avoids selecting the same camera twice in a row. Each shot duration is drawn independently from the configured range.
+
+```csharp
+var sequence = new CameraSequenceSettings
+{
+    Cameras = new[] { camera1, camera2, camera3 },
+    Order = CameraSequenceOrder.Random,
+    MinimumShotDurationSeconds = 3f,
+    MaximumShotDurationSeconds = 8f,
+    CrossFadeDurationSeconds = 1f,
+    Transitions = new[] { CameraSequenceTransition.CrossFade },
+    RandomSeed = 42 // Optional: reproduce the same edit.
+};
+
+recorder.StartRecording(sequence, listener, recordingSettings);
+```
+
+The crossfade duration defaults to one second. Outside transitions, only the active camera is rendered by the sequence. During a crossfade, the outgoing and incoming cameras are rendered and blended on the GPU with complementary opacity.
 
 ## PNG sequence instead of video
 
