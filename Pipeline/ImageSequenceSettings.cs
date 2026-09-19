@@ -8,7 +8,7 @@ namespace UnityRuntimeCameraRecorder
     }
 
     // Describes a numbered PNG or JPEG image-sequence capture session.
-    public sealed class PngSequenceSettings
+    public sealed class ImageSequenceSettings
     {
         public string OutputDirectory { get; set; }
         public string FileNamePrefix { get; set; } = "frame_";

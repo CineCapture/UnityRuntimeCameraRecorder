@@ -3,18 +3,39 @@ using System.Linq;
 using UnityRuntimeCameraRecorder;
 using FFmpegMediaWriter;
 
-static void Expect(bool condition, string message) { if (!condition) throw new Exception(message); }
-static void Invalid(Action action) { try { action(); } catch (ArgumentException) { return; } throw new Exception("Invalid input accepted"); }
+static void Expect(bool condition, string message)
+{
+    if (!condition)
+    {
+        throw new Exception(message);
+    }
+}
+
+static void Invalid(Action action)
+{
+    try
+    {
+        action();
+    }
+    catch (ArgumentException)
+    {
+        return;
+    }
+
+    throw new Exception("Invalid input accepted");
+}
 foreach (var quality in Enum.GetValues<RecordingQualityPreset>())
 {
     int baseline = quality == RecordingQualityPreset.Low ? 27 : quality == RecordingQualityPreset.Medium ? 23 : 16;
     foreach (var size in new[] { (1920,1080), (3840,2160), (2560,1440), (3440,1440), (1080,1920), (2048,1152) })
-    foreach (int fps in new[] {30,60})
     {
-        var profile = RecordingQualityProfile.FromPreset(quality, size.Item1, size.Item2, fps);
-        Expect(profile.QuantizationParameter == baseline, "Unexpected large-resolution QP");
-        Expect(profile.NativeEncodingPreset == 5 && profile.VideoBitRate == 0 && profile.MaximumVideoBitRate == 0, "CQP profile changed");
-        Expect(profile.AudioBitRate == (quality == RecordingQualityPreset.Low ? 128000 : 192000), "AAC bitrate changed");
+        foreach (int fps in new[] {30,60})
+        {
+            var profile = RecordingQualityProfile.FromPreset(quality, size.Item1, size.Item2, fps);
+            Expect(profile.QuantizationParameter == baseline, "Unexpected large-resolution QP");
+            Expect(profile.NativeEncodingPreset == 5 && profile.VideoBitRate == 0 && profile.MaximumVideoBitRate == 0, "CQP profile changed");
+            Expect(profile.AudioBitRate == (quality == RecordingQualityPreset.Low ? 128000 : 192000), "AAC bitrate changed");
+        }
     }
     Expect(RecordingQualityProfile.FromPreset(quality,1280,720).QuantizationParameter == baseline - 2, "720p reduction");
     Expect(RecordingQualityProfile.FromPreset(quality,640,480).QuantizationParameter == baseline - 6, "Small-resolution reduction");
@@ -35,7 +56,8 @@ foreach (int presentation in presentationOrder)
     Expect(ts.Length % 188 == 0, "TS alignment");
     byte[] first = ts.Skip(376).Take(188).ToArray();
     int pes = 5 + first[4];
-    long pts = Time(first,pes+9), dts = Time(first,pes+14);
+    long pts = Time(first,pes+9);
+    long dts = Time(first,pes+14);
     Expect(Math.Abs(pts-(96000+presentation*3000))<=1, "Presentation timestamp was reordered");
     Expect(dts > previousDts && pts >= dts, "Decode timestamp is invalid");
     previousDts = dts;

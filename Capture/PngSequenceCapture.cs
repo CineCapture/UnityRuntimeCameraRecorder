@@ -16,7 +16,7 @@ namespace UnityRuntimeCameraRecorder
     internal sealed class PngSequenceCapture : MonoBehaviour
     {
         private Camera _camera;
-        private PngSequenceSettings _settings;
+        private ImageSequenceSettings _settings;
         private RenderTexture _source;
         private RenderTexture _readbackTarget;
         private RenderTexture _previousTarget;
@@ -38,7 +38,7 @@ namespace UnityRuntimeCameraRecorder
         public int CapturedFrameCount => _capturedFrameCount;
 
         // Allocates render targets and starts asynchronous PNG production.
-        public void StartCapture(Camera camera, PngSequenceSettings settings, RenderTexture preparedTarget)
+        public void StartCapture(Camera camera, ImageSequenceSettings settings, RenderTexture preparedTarget)
         {
             _camera = camera;
             _settings = settings;

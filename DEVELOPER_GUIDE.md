@@ -258,7 +258,7 @@ The last diagnostic JSON remains available after capture resources are released.
 PNG capture does not use FFmpeg, NVENC or audio:
 
 ```csharp
-recorder.StartPngSequence(camera, new PngSequenceSettings
+recorder.StartPngSequence(camera, new ImageSequenceSettings
 {
     OutputDirectory = Path.Combine(directory, "Frames"),
     FileNamePrefix = "frame_",

@@ -54,7 +54,10 @@ namespace UnityRuntimeCameraRecorder
         // Creates shared resources for an explicit-source recording.
         private void StartRecordingCore(AudioListener listener, RecordingSettings settings, VideoSequenceSettings sequence)
         {
-            if (settings.CaptureHdr) throw new NotSupportedException("HDR recording is not supported by the SDR quality profile.");
+            if (settings.CaptureHdr)
+            {
+                throw new NotSupportedException("HDR recording is not supported by the SDR quality profile.");
+            }
             LastVideoDiagnosticsJson = null;
             _listener = listener;
             _qualityProfile = RecordingQualityProfile.FromPreset(settings.QualityPreset, settings.Width, settings.Height, settings.MaximumFrameRate);
@@ -80,7 +83,7 @@ namespace UnityRuntimeCameraRecorder
         }
 
         // Starts a camera-only PNG image sequence without FFmpeg, audio or a video encoder.
-        public void StartPngSequence(Camera camera, PngSequenceSettings settings, RenderTexture preparedTarget = null)
+        public void StartPngSequence(Camera camera, ImageSequenceSettings settings, RenderTexture preparedTarget = null)
         {
             if (IsBusy)
             {
@@ -425,7 +428,7 @@ namespace UnityRuntimeCameraRecorder
         }
 
         // Rejects missing or invalid PNG sequence arguments before resources are allocated.
-        private static void ValidatePngSequenceArguments(Camera camera, PngSequenceSettings settings)
+        private static void ValidatePngSequenceArguments(Camera camera, ImageSequenceSettings settings)
         {
             if (camera == null)
             {
