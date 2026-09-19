@@ -38,7 +38,7 @@ recorder.RecordingFailed += Debug.LogException;
 
 recorder.StartRecording(sequence, audioListener, new RecordingSettings
 {
-    FfmpegPath = @"C:\tools\ffmpeg\bin\ffmpeg.exe",
+    FfmpegPath = @"C:\tools\ffmpeg\bin\",
     TemporaryContainerPath = @"C:\Captures\capture.mkv.tmp",
     OutputPath = @"C:\Captures\capture.mp4",
     Width = 3840,

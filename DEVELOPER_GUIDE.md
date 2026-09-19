@@ -63,7 +63,7 @@ Directory.CreateDirectory(directory);
 
 var settings = new RecordingSettings
 {
-    FfmpegPath = @"C:\tools\ffmpeg\bin\ffmpeg.exe",
+    FfmpegPath = @"C:\tools\ffmpeg\bin\",
     TemporaryContainerPath = Path.Combine(directory, "capture.mkv.tmp"),
     OutputPath = Path.Combine(directory, "capture.mp4"),
     Width = 3840,

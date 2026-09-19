@@ -187,7 +187,23 @@ namespace UnityRuntimeCameraRecorder
             _waitingForAudio = false;
             try
             {
-                _writer.Start(new MediaWriterSettings { FfmpegPath = _settings.FfmpegPath, TemporaryContainerPath = _settings.TemporaryContainerPath, OutputPath = _settings.OutputPath, MaximumFrameRate = _settings.MaximumFrameRate, AudioSampleRate = _audio.SampleRate, AudioChannels = _audio.Channels, VideoStreamFormat = _videoStreamFormat, EncodedVideoHasPresentationTimestamps = true, AudioCodec = AudioEncodingCodec.Aac, AudioBitRate = _qualityProfile.AudioBitRate, OutputAudioSampleRate = _qualityProfile.AudioSampleRate, OutputAudioChannels = _qualityProfile.AudioChannels, Warning = RecorderLog.WriteWarning, Error = RecorderLog.WriteError });
+                _writer.Start(new MediaWriterSettings
+                {
+                    FfmpegPath = Path.Combine(_settings.FfmpegPath, "ffmpeg.exe"),
+                    TemporaryContainerPath = _settings.TemporaryContainerPath,
+                    OutputPath = _settings.OutputPath,
+                    MaximumFrameRate = _settings.MaximumFrameRate,
+                    AudioSampleRate = _audio.SampleRate,
+                    AudioChannels = _audio.Channels,
+                    VideoStreamFormat = _videoStreamFormat,
+                    EncodedVideoHasPresentationTimestamps = true,
+                    AudioCodec = AudioEncodingCodec.Aac,
+                    AudioBitRate = _qualityProfile.AudioBitRate,
+                    OutputAudioSampleRate = _qualityProfile.AudioSampleRate,
+                    OutputAudioChannels = _qualityProfile.AudioChannels,
+                    Warning = RecorderLog.WriteWarning,
+                    Error = RecorderLog.WriteError
+                });
                 _writerStarted = true;
                 _waitingForPipes = true;
             }
@@ -297,7 +313,7 @@ namespace UnityRuntimeCameraRecorder
             string ffprobePath = _settings.FfprobePath;
             if (string.IsNullOrWhiteSpace(ffprobePath))
             {
-                ffprobePath = Path.Combine(Path.GetDirectoryName(_settings.FfmpegPath) ?? string.Empty, "ffprobe.exe");
+                ffprobePath = Path.Combine(_settings.FfmpegPath, "ffprobe.exe");
             }
             string statisticsPath = string.IsNullOrWhiteSpace(_settings.StatisticsPath)
                 ? Path.ChangeExtension(_settings.OutputPath, ".stats.txt") : _settings.StatisticsPath;
@@ -353,7 +369,17 @@ namespace UnityRuntimeCameraRecorder
 
             if (string.IsNullOrWhiteSpace(settings.FfmpegPath))
             {
-                throw new ArgumentException("FfmpegPath must specify the external FFmpeg executable.", nameof(settings));
+                throw new ArgumentException("FfmpegPath must specify the FFmpeg bin directory.", nameof(settings));
+            }
+
+            if (!Directory.Exists(settings.FfmpegPath))
+            {
+                throw new DirectoryNotFoundException("The FFmpeg bin directory does not exist: " + settings.FfmpegPath);
+            }
+
+            if (!File.Exists(Path.Combine(settings.FfmpegPath, "ffmpeg.exe")))
+            {
+                throw new FileNotFoundException("ffmpeg.exe was not found in the FFmpeg bin directory.", settings.FfmpegPath);
             }
 
             if (settings.Width < 2 || settings.Height < 2)
@@ -376,9 +402,9 @@ namespace UnityRuntimeCameraRecorder
                 throw new ArgumentException("A temporary container path is required.", nameof(settings));
             }
 
-            if (settings.GenerateStatistics && string.IsNullOrWhiteSpace(settings.FfmpegPath))
+            if (settings.GenerateStatistics && string.IsNullOrWhiteSpace(settings.FfprobePath) && !File.Exists(Path.Combine(settings.FfmpegPath, "ffprobe.exe")))
             {
-                throw new ArgumentException("Statistics generation requires FFmpeg and FFprobe paths.", nameof(settings));
+                throw new FileNotFoundException("ffprobe.exe was not found in the FFmpeg bin directory.", settings.FfmpegPath);
             }
 
             if (string.IsNullOrWhiteSpace(settings.OutputPath))
