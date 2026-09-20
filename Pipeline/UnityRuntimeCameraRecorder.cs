@@ -189,7 +189,7 @@ namespace UnityRuntimeCameraRecorder
             {
                 _writer.Start(new MediaWriterSettings
                 {
-                    FfmpegPath = Path.Combine(_settings.FfmpegPath, "ffmpeg.exe"),
+                    FfmpegPath = _settings.FfmpegPath,
                     TemporaryContainerPath = _settings.TemporaryContainerPath,
                     OutputPath = _settings.OutputPath,
                     MaximumFrameRate = _settings.MaximumFrameRate,
