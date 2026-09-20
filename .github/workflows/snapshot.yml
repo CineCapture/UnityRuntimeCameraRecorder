@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: snapshot-${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +21,7 @@ jobs:
     env:
       UNITY_VERSION: 6000.0.61f1
       MEDIA_WRITER_REVISION: 405024406bbfbcf85963bff9722ec70faf433b76
+      VIDEO_ENCODER_REVISION: c85b9c8ed9d50b4f18f7cfaa64638a51990d7a44
     defaults:
       run:
         shell: pwsh
@@ -41,6 +42,14 @@ jobs:
           path: FFmpegMediaWriter
           persist-credentials: false
 
+      - name: Check out video encoder dependency
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: UnityRuntimeCameraRecorder/Direct3DVideoEncoder
+          ref: ${{ env.VIDEO_ENCODER_REVISION }}
+          path: Direct3DVideoEncoder
+          persist-credentials: false
+
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
@@ -54,6 +63,18 @@ jobs:
           version-file: None
           unity-version: ${{ env.UNITY_VERSION }}
           cache-installation: true
+
+      - name: Build native video encoder
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe'
+          if ($LASTEXITCODE -ne 0 -or -not $msbuild) {
+            throw 'Visual Studio C++ build tools were not found.'
+          }
+          & ($msbuild | Select-Object -First 1) ../Direct3DVideoEncoder/Direct3DVideoEncoder.vcxproj /m /p:Configuration=Release /p:Platform=x64 /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "Native build failed with exit code $LASTEXITCODE."
+          }
 
       - name: Build managed DLLs
         env:
@@ -73,11 +94,11 @@ jobs:
       - name: Package snapshot
         run: |
           $snapshot = 'bin/snapshot'
+          Remove-Item -LiteralPath $snapshot -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $snapshot -Force | Out-Null
-          Copy-Item -LiteralPath 'bin/Release/netstandard2.1/UnityRuntimeCameraRecorder.dll', 'bin/Release/netstandard2.1/FFmpegMediaWriter.dll', 'LICENSE', 'README.md' -Destination $snapshot
-          Copy-Item -LiteralPath '../FFmpegMediaWriter/LICENSE' -Destination "$snapshot/FFmpegMediaWriter.LICENSE"
+          Copy-Item -LiteralPath 'bin/Release/netstandard2.1/UnityRuntimeCameraRecorder.dll', 'bin/Release/netstandard2.1/FFmpegMediaWriter.dll', '../Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll', 'LICENSE', 'README.md' -Destination $snapshot
           $hashes = [ordered]@{}
-          foreach ($name in 'UnityRuntimeCameraRecorder.dll', 'FFmpegMediaWriter.dll') {
+          foreach ($name in 'UnityRuntimeCameraRecorder.dll', 'FFmpegMediaWriter.dll', 'Direct3DVideoEncoder.dll') {
             $dll = Get-Item -LiteralPath "$snapshot/$name"
             if ($dll.Length -eq 0) {
               throw "The compiled $name is empty."
@@ -88,6 +109,7 @@ jobs:
             kind = 'snapshot'
             commit = (git rev-parse HEAD)
             mediaWriterCommit = (git -C ../FFmpegMediaWriter rev-parse HEAD)
+            videoEncoderCommit = (git -C ../Direct3DVideoEncoder rev-parse HEAD)
             unityVersion = $env:UNITY_VERSION
             run = $env:GITHUB_RUN_ID
             attempt = $env:GITHUB_RUN_ATTEMPT
@@ -97,6 +119,7 @@ jobs:
             configuration = 'Release'
             dllSha256 = $hashes
           } | ConvertTo-Json | Set-Content -LiteralPath "$snapshot/build-info.json" -Encoding utf8
+          Compress-Archive -Path "$snapshot/*" -DestinationPath 'bin/UnityRuntimeCameraRecorder-1.0.0-snapshot-windows-x64.zip' -Force
 
       - name: Upload snapshot
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -114,3 +137,31 @@ jobs:
           path: UnityRuntimeCameraRecorder/obj/snapshot-build.log
           if-no-files-found: ignore
           retention-days: 30
+
+      - name: Publish snapshot prerelease
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SNAPSHOT_TAG: 1.0.0-snapshot
+        run: |
+          $tagReference = "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$env:SNAPSHOT_TAG"
+          gh api --method PATCH $tagReference -f sha="$env:GITHUB_SHA" -F force=true 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh api --method POST "repos/$env:GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$env:SNAPSHOT_TAG" -f sha="$env:GITHUB_SHA"
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to update the snapshot tag.'
+          }
+          gh release view $env:SNAPSHOT_TAG 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $env:SNAPSHOT_TAG --title $env:SNAPSHOT_TAG --prerelease --notes 'Latest automatic snapshot from the main branch.'
+          } else {
+            gh release create $env:SNAPSHOT_TAG --title $env:SNAPSHOT_TAG --prerelease --notes 'Latest automatic snapshot from the main branch.'
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to create or update the snapshot prerelease.'
+          }
+          gh release upload $env:SNAPSHOT_TAG 'bin/UnityRuntimeCameraRecorder-1.0.0-snapshot-windows-x64.zip' --clobber
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to upload the snapshot archive.'
+          }
