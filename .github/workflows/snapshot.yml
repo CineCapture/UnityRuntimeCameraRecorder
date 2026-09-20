@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 45
     env:
       UNITY_VERSION: 6000.0.61f1
-      MEDIA_WRITER_REVISION: f9b92f201b4d6df7720c041ec04bd67a20944620
+      MEDIA_WRITER_REVISION: e4274cf710724a2feb0dca89bb99ab25365ca054
       VIDEO_ENCODER_REVISION: c85b9c8ed9d50b4f18f7cfaa64638a51990d7a44
     defaults:
       run:
