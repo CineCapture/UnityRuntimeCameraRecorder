@@ -35,6 +35,8 @@ namespace UnityRuntimeCameraRecorder
         public bool IsFinalizing => _writer?.IsFinalizing == true;
         public bool IsBusy => IsCapturing || IsFinalizing || _statisticsTask != null;
         public string ActiveVideoBackendName => _videoBackend?.Name;
+        public int ActiveVideoSourceIndex =>
+            _videoBackend?.ActiveSourceIndex ?? -1;
         // Retains optional backend telemetry after capture resources have been released.
         public string LastVideoDiagnosticsJson { get; private set; }
         public int CapturedImageFrameCount => _imageSequenceCapture?.CapturedFrameCount ?? _lastCapturedImageFrameCount;

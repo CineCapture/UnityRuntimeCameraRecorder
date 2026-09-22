@@ -29,6 +29,8 @@ namespace UnityRuntimeCameraRecorder
         private string _diagnosticsJson;
         public override string DiagnosticsJson => _diagnosticsJson;
         public override string Name => "D3D11 NVENC";
+        public override int ActiveSourceIndex =>
+            _videoSequenceCompositor?.ActiveSourceIndex ?? -1;
         private VideoStreamFormat _streamFormat = VideoStreamFormat.H264;
         public override VideoStreamFormat StreamFormat => _streamFormat;
 

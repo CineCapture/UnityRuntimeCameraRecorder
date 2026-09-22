@@ -81,6 +81,7 @@ namespace UnityRuntimeCameraRecorder
 
         internal bool RequiresScreen { get; private set; }
         internal bool CapturesScreenCursor { get; private set; }
+        internal int ActiveSourceIndex => _currentIndex;
         private int SourceCount => _sources.Count;
 
         // Releases the compositor's materials and render textures.
