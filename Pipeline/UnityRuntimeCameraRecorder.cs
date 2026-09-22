@@ -39,6 +39,30 @@ namespace UnityRuntimeCameraRecorder
         public string LastVideoDiagnosticsJson { get; private set; }
         public int CapturedImageFrameCount => _imageSequenceCapture?.CapturedFrameCount ?? _lastCapturedImageFrameCount;
 
+        // Attempts to finalize a temporary container left by an interrupted recording.
+        public void RecoverRecording(RecordingSettings settings)
+        {
+            if (IsBusy)
+            {
+                throw new InvalidOperationException("The media recorder is already busy.");
+            }
+
+            ValidateRecoveryArguments(settings);
+            _settings = settings;
+            _qualityProfile = RecordingQualityProfile.FromPreset(settings.QualityPreset);
+            try
+            {
+                _writer = new FFmpegMediaWriter.FfmpegMediaWriter();
+                _writer.Recover(CreateMediaWriterSettings(settings));
+                FinalizationStarted?.Invoke();
+            }
+            catch
+            {
+                ReleaseWriter();
+                throw;
+            }
+        }
+
         // Starts one output from one or more explicit video sources.
         public void StartRecording(VideoSequenceSettings sequence, AudioListener listener, RecordingSettings settings)
         {
@@ -187,23 +211,12 @@ namespace UnityRuntimeCameraRecorder
             _waitingForAudio = false;
             try
             {
-                _writer.Start(new MediaWriterSettings
-                {
-                    FfmpegPath = _settings.FfmpegPath,
-                    TemporaryContainerPath = _settings.TemporaryContainerPath,
-                    OutputPath = _settings.OutputPath,
-                    MaximumFrameRate = _settings.MaximumFrameRate,
-                    AudioSampleRate = _audio.SampleRate,
-                    AudioChannels = _audio.Channels,
-                    VideoStreamFormat = _videoStreamFormat,
-                    EncodedVideoHasPresentationTimestamps = true,
-                    AudioCodec = AudioEncodingCodec.Aac,
-                    AudioBitRate = _qualityProfile.AudioBitRate,
-                    OutputAudioSampleRate = _qualityProfile.AudioSampleRate,
-                    OutputAudioChannels = _qualityProfile.AudioChannels,
-                    Warning = RecorderLog.WriteWarning,
-                    Error = RecorderLog.WriteError
-                });
+                MediaWriterSettings writerSettings = CreateMediaWriterSettings(_settings);
+                writerSettings.AudioSampleRate = _audio.SampleRate;
+                writerSettings.AudioChannels = _audio.Channels;
+                writerSettings.VideoStreamFormat = _videoStreamFormat;
+                writerSettings.EncodedVideoHasPresentationTimestamps = true;
+                _writer.Start(writerSettings);
                 _writerStarted = true;
                 _waitingForPipes = true;
             }
@@ -307,6 +320,24 @@ namespace UnityRuntimeCameraRecorder
             }
         }
 
+        // Maps recorder settings to the format-neutral media writer settings.
+        private MediaWriterSettings CreateMediaWriterSettings(RecordingSettings settings)
+        {
+            return new MediaWriterSettings
+            {
+                FfmpegPath = settings.FfmpegPath,
+                TemporaryContainerPath = settings.TemporaryContainerPath,
+                OutputPath = settings.OutputPath,
+                MaximumFrameRate = settings.MaximumFrameRate,
+                AudioCodec = AudioEncodingCodec.Aac,
+                AudioBitRate = _qualityProfile.AudioBitRate,
+                OutputAudioSampleRate = _qualityProfile.AudioSampleRate,
+                OutputAudioChannels = _qualityProfile.AudioChannels,
+                Warning = RecorderLog.WriteWarning,
+                Error = RecorderLog.WriteError
+            };
+        }
+
         // Starts optional per-video statistics generation on a worker thread.
         private void StartStatistics()
         {
@@ -407,6 +438,33 @@ namespace UnityRuntimeCameraRecorder
                 throw new FileNotFoundException("ffprobe.exe was not found in the FFmpeg bin directory.", settings.FfmpegPath);
             }
 
+            if (string.IsNullOrWhiteSpace(settings.OutputPath))
+            {
+                throw new ArgumentException("An output path is required.", nameof(settings));
+            }
+        }
+
+        // Rejects invalid paths before interrupted-recording recovery starts.
+        private static void ValidateRecoveryArguments(RecordingSettings settings)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+            if (string.IsNullOrWhiteSpace(settings.FfmpegPath) ||
+                !File.Exists(Path.Combine(settings.FfmpegPath, "ffmpeg.exe")))
+            {
+                throw new FileNotFoundException(
+                    "The FFmpeg bin directory does not contain ffmpeg.exe.",
+                    settings.FfmpegPath);
+            }
+            if (string.IsNullOrWhiteSpace(settings.TemporaryContainerPath) ||
+                !File.Exists(settings.TemporaryContainerPath))
+            {
+                throw new FileNotFoundException(
+                    "The temporary recording container does not exist.",
+                    settings.TemporaryContainerPath);
+            }
             if (string.IsNullOrWhiteSpace(settings.OutputPath))
             {
                 throw new ArgumentException("An output path is required.", nameof(settings));
