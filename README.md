@@ -44,7 +44,7 @@ recorder.StartRecording(sequence, audioListener, new RecordingSettings
     Width = 3840,
     Height = 2160,
     MaximumFrameRate = 60,
-    QualityPreset = RecordingQualityPreset.High,
+    QualityPreset = RecordingQualityPreset.Highest,
     VideoStreamFormat = VideoStreamFormat.H264
 });
 
@@ -71,9 +71,10 @@ Camera sources must remain enabled and have a valid `targetTexture`. Keep all so
 
 | Profile | NVENC | Video CQP | AAC audio |
 | --- | ---: | ---: | ---: |
-| Low | P5 | 27 | 128 kbit/s |
-| Medium | P5 | 23 | 192 kbit/s |
-| High (default) | P5 | 16 | 192 kbit/s |
+| Low | P5 | 32 | 96 kbit/s |
+| Medium | P5 | 27 | 128 kbit/s |
+| High | P5 | 23 | 192 kbit/s |
+| Highest (default) | P5 | 16 | 192 kbit/s |
 
 H.264 is the default codec. HDR is not supported. The configured FPS is a ceiling, not a guarantee.
 

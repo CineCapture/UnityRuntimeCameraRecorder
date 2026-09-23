@@ -27,7 +27,9 @@ static void Invalid(Action action)
 }
 foreach (var quality in Enum.GetValues<RecordingQualityPreset>())
 {
-    int baseline = quality == RecordingQualityPreset.Low ? 27 : quality == RecordingQualityPreset.Medium ? 23 : 16;
+    int baseline = quality == RecordingQualityPreset.Low ? 32
+        : quality == RecordingQualityPreset.Medium ? 27
+        : quality == RecordingQualityPreset.High ? 23 : 16;
     foreach (var size in new[] { (1920,1080), (3840,2160), (2560,1440), (3440,1440), (1080,1920), (2048,1152) })
     {
         foreach (int fps in new[] {30,60})
@@ -35,7 +37,9 @@ foreach (var quality in Enum.GetValues<RecordingQualityPreset>())
             var profile = RecordingQualityProfile.FromPreset(quality, size.Item1, size.Item2, fps);
             Expect(profile.QuantizationParameter == baseline, "Unexpected large-resolution QP");
             Expect(profile.NativeEncodingPreset == 5 && profile.VideoBitRate == 0 && profile.MaximumVideoBitRate == 0, "CQP profile changed");
-            Expect(profile.AudioBitRate == (quality == RecordingQualityPreset.Low ? 128000 : 192000), "AAC bitrate changed");
+            int audioBitRate = quality == RecordingQualityPreset.Low ? 96000
+                : quality == RecordingQualityPreset.Medium ? 128000 : 192000;
+            Expect(profile.AudioBitRate == audioBitRate, "AAC bitrate changed");
         }
     }
     Expect(RecordingQualityProfile.FromPreset(quality,1280,720).QuantizationParameter == baseline - 2, "720p reduction");

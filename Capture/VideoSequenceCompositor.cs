@@ -84,6 +84,18 @@ namespace UnityRuntimeCameraRecorder
         internal int ActiveSourceIndex => _currentIndex;
         private int SourceCount => _sources.Count;
 
+        // Selects one source immediately and restarts its shot duration.
+        internal void SetActiveSourceIndex(int index, float time)
+        {
+            if (index < 0 || index >= SourceCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            _currentIndex = index;
+            _nextIndex = -1;
+            _shotEndTime = time + NextShotDuration();
+        }
+
         // Releases the compositor's materials and render textures.
         public void Dispose()
         {
@@ -233,6 +245,12 @@ namespace UnityRuntimeCameraRecorder
         // Promotes the incoming source and schedules its next cut or transition.
         private void CompleteTransition(float time)
         {
+            if (_settings.CanActivateSource?.Invoke(_nextIndex) == false)
+            {
+                _nextIndex = -1;
+                _shotEndTime = time + NextShotDuration();
+                return;
+            }
             _currentIndex = _nextIndex;
             _nextIndex = -1;
             _shotEndTime = time + NextShotDuration();

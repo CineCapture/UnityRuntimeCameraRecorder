@@ -37,6 +37,17 @@ namespace UnityRuntimeCameraRecorder
         public string ActiveVideoBackendName => _videoBackend?.Name;
         public int ActiveVideoSourceIndex =>
             _videoBackend?.ActiveSourceIndex ?? -1;
+
+        // Immediately selects one source in the active video sequence.
+        public void SetActiveVideoSourceIndex(int index)
+        {
+            if (!IsCapturing || _videoBackend == null)
+            {
+                throw new InvalidOperationException(
+                    "Video capture is not active.");
+            }
+            _videoBackend.SetActiveSourceIndex(index);
+        }
         // Retains optional backend telemetry after capture resources have been released.
         public string LastVideoDiagnosticsJson { get; private set; }
         public int CapturedImageFrameCount => _imageSequenceCapture?.CapturedFrameCount ?? _lastCapturedImageFrameCount;

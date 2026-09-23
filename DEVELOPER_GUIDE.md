@@ -70,7 +70,7 @@ var settings = new RecordingSettings
     Height = 2160,
     MaximumFrameRate = 60,
     SourceAntiAliasingSamples = 4,
-    QualityPreset = RecordingQualityPreset.High,
+    QualityPreset = RecordingQualityPreset.Highest,
     VideoStreamFormat = VideoStreamFormat.H264
 };
 ```
@@ -202,11 +202,11 @@ Each recorder captures, stops and finalizes independently. Never reuse its tempo
 ## 10. Select quality and codec
 
 ```csharp
-settings.QualityPreset = RecordingQualityPreset.Low; // Low, Medium or High
+settings.QualityPreset = RecordingQualityPreset.Low; // Low, Medium, High or Highest
 settings.VideoStreamFormat = VideoStreamFormat.Hevc; // H264 or Hevc
 ```
 
-H.264 and `High` are the defaults. HEVC requires support from the active backend and GPU. Quality profiles configure video CQP, NVENC settings and AAC bitrate automatically.
+H.264 and `Highest` are the defaults. HEVC requires support from the active backend and GPU. Quality profiles configure video CQP, NVENC settings and AAC bitrate automatically.
 
 HDR recording is not currently supported. Setting `CaptureHdr = true` throws an error.
 

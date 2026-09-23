@@ -34,6 +34,18 @@ namespace UnityRuntimeCameraRecorder
         private VideoStreamFormat _streamFormat = VideoStreamFormat.H264;
         public override VideoStreamFormat StreamFormat => _streamFormat;
 
+        // Immediately switches the active sequence source.
+        public override void SetActiveSourceIndex(int index)
+        {
+            if (_videoSequenceCompositor == null)
+            {
+                throw new InvalidOperationException(
+                    "Video capture has not started.");
+            }
+            _videoSequenceCompositor.SetActiveSourceIndex(
+                index, Time.realtimeSinceStartup);
+        }
+
         // Selects an immutable session codec before configuring the native encoder and writer.
         public override void ConfigureStreamFormat(VideoStreamFormat format)
         {

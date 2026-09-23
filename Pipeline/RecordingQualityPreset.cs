@@ -6,7 +6,8 @@ namespace UnityRuntimeCameraRecorder
     {
         Low,
         Medium,
-        High
+        High,
+        Highest
     }
 
     // SDR constant-QP profile; video bitrate is determined by scene complexity.
@@ -45,12 +46,15 @@ namespace UnityRuntimeCameraRecorder
             switch (preset)
             {
                 case RecordingQualityPreset.Low:
-                    baseQp = 27;
+                    baseQp = 32;
                     break;
                 case RecordingQualityPreset.Medium:
-                    baseQp = 23;
+                    baseQp = 27;
                     break;
                 case RecordingQualityPreset.High:
+                    baseQp = 23;
+                    break;
+                case RecordingQualityPreset.Highest:
                     baseQp = 16;
                     break;
                 default:
@@ -58,7 +62,10 @@ namespace UnityRuntimeCameraRecorder
             }
             double diagonal = Math.Sqrt((double)width * width + (double)height * height);
             int reduction = (int)Math.Floor((1 - Math.Min(2000, diagonal) / 2000) * 10);
-            return new RecordingQualityProfile(baseQp, reduction, preset == RecordingQualityPreset.Low ? 128000 : 192000, 5);
+            int audioBitRate = preset == RecordingQualityPreset.Low
+                ? 96000
+                : preset == RecordingQualityPreset.Medium ? 128000 : 192000;
+            return new RecordingQualityProfile(baseQp, reduction, audioBitRate, 5);
         }
     }
 }

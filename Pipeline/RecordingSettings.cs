@@ -15,7 +15,7 @@ namespace UnityRuntimeCameraRecorder
         public int Height { get; set; }
         public int MaximumFrameRate { get; set; } = 60;
         public int SourceAntiAliasingSamples { get; set; } = 1;
-        public RecordingQualityPreset QualityPreset { get; set; } = RecordingQualityPreset.High;
+        public RecordingQualityPreset QualityPreset { get; set; } = RecordingQualityPreset.Highest;
         public VideoStreamFormat VideoStreamFormat { get; set; } = VideoStreamFormat.H264;
         public bool OptimizeForConcurrentEncoding { get; set; }
         // HDR sources are explicitly unsupported by the SDR profile.
