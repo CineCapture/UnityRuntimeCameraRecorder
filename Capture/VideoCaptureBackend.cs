@@ -9,7 +9,6 @@ namespace UnityRuntimeCameraRecorder
         public abstract string Name { get; }
         public abstract VideoStreamFormat StreamFormat { get; }
         public virtual string DiagnosticsJson => null;
-        public virtual int ActiveSourceIndex => -1;
 
         // Validates the requested codec before the writer is configured.
         public virtual void ConfigureStreamFormat(VideoStreamFormat format)
@@ -26,11 +25,5 @@ namespace UnityRuntimeCameraRecorder
         // Stops production and releases all backend-owned resources.
         public abstract void StopCapture();
 
-        // Immediately selects one source when the backend supports sequences.
-        public virtual void SetActiveSourceIndex(int index)
-        {
-            throw new System.NotSupportedException(
-                "This video backend cannot select an active source.");
-        }
     }
 }

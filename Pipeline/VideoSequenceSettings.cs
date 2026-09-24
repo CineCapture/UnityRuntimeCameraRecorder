@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace UnityRuntimeCameraRecorder
@@ -27,6 +26,5 @@ namespace UnityRuntimeCameraRecorder
         public float CrossFadeDurationSeconds { get; set; } = 0.5f;
         public IReadOnlyList<VideoSequenceTransition> Transitions { get; set; } = new[] { VideoSequenceTransition.CrossFade };
         public int? RandomSeed { get; set; }
-        public Func<int, bool> CanActivateSource { get; set; }
     }
 }
