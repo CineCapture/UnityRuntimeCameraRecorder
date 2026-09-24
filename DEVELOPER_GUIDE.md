@@ -318,4 +318,4 @@ RecorderLog.Warning = message => Debug.LogWarning($"[Recorder] {message}");
 RecorderLog.Error = exception => Debug.LogException(exception);
 ```
 
-See the repository [README](README.md) for supported platforms, quality-profile details and backend extension points. See [UnitySample](https://github.com/UnityRuntimeCameraRecorder/UnitySample) for a complete editable scene.
+See the repository [README](README.md) for supported platforms, quality-profile details and backend extension points. See [UnitySample](https://github.com/CineCapture/UnitySample) for a complete editable scene.
