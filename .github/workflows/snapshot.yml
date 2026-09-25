@@ -56,8 +56,13 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $managed 'UnityEngine.CoreModule.dll'))) {
             throw "Unity compilation references were not found in $managed."
           }
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $nativeMsbuild = & $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $nativeMsbuild) {
+            throw 'Visual Studio C++ build tools were not found.'
+          }
           New-Item -ItemType Directory -Path obj -Force | Out-Null
-          dotnet build UnityRuntimeCameraRecorder.csproj -c Release "-p:UnityManagedPath=$managed" -v minimal /fl '/flp:logfile=obj/snapshot-build.log;verbosity=normal'
+          dotnet build UnityRuntimeCameraRecorder.csproj -c Release "-p:UnityManagedPath=$managed" "-p:NativeMSBuildPath=$nativeMsbuild" -v minimal /fl '/flp:logfile=obj/snapshot-build.log;verbosity=normal'
           if ($LASTEXITCODE -ne 0) {
             throw "Build failed with exit code $LASTEXITCODE."
           }

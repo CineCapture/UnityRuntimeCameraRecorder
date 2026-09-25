@@ -7,11 +7,15 @@
     <Deterministic>false</Deterministic>
     <RootNamespace>UnityRuntimeCameraRecorder</RootNamespace>
     <AssemblyName>UnityRuntimeCameraRecorder</AssemblyName>
+    <NativePlatform Condition="'$(NativePlatform)' == ''">x64</NativePlatform>
+    <NativeConfiguration Condition="'$(NativeConfiguration)' == ''">$(Configuration)</NativeConfiguration>
+    <NativeEncoderProject>$(MSBuildProjectDirectory)/Dependencies/Direct3DVideoEncoder/Direct3DVideoEncoder.vcxproj</NativeEncoderProject>
+    <NativeEncoderOutput>$(MSBuildProjectDirectory)/Dependencies/Direct3DVideoEncoder/build/$(NativePlatform)/$(NativeConfiguration)/Direct3DVideoEncoder.dll</NativeEncoderOutput>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="Dependencies/FFmpegMediaWriter/FFmpegMediaWriter.csproj" />
-    <None Include="Dependencies/Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll"
-          Condition="$([MSBuild]::IsOSPlatform('Windows')) And Exists('Dependencies/Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll')">
+    <None Include="$(NativeEncoderOutput)"
+          Condition="$([MSBuild]::IsOSPlatform('Windows'))">
       <Link>Direct3DVideoEncoder.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -44,5 +48,14 @@
   <Target Name="ValidateUnityManagedPath" BeforeTargets="ResolveReferences">
     <Error Condition="'$(UnityManagedPath)' == '' Or !Exists('$(UnityManagedPath)/UnityEngine.CoreModule.dll')"
            Text="Supply UnityManagedPath pointing to Unity's managed UnityEngine assembly directory." />
+  </Target>
+  <Target Name="BuildNativeEncoder"
+          BeforeTargets="PrepareForBuild"
+          Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Error Condition="'$(NativeMSBuildPath)' == '' Or !Exists('$(NativeMSBuildPath)')"
+           Text="Supply NativeMSBuildPath pointing to Visual Studio MSBuild.exe." />
+    <Error Condition="!Exists('$(NativeEncoderProject)')"
+           Text="Initialize the Direct3DVideoEncoder submodule." />
+    <Exec Command="&quot;$(NativeMSBuildPath)&quot; &quot;$(NativeEncoderProject)&quot; /m /t:Build /p:Configuration=$(NativeConfiguration) /p:Platform=$(NativePlatform) /v:minimal" />
   </Target>
 </Project>
