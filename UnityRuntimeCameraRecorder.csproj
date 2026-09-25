@@ -9,9 +9,9 @@
     <AssemblyName>UnityRuntimeCameraRecorder</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../FFmpegMediaWriter/FFmpegMediaWriter.csproj" />
-    <None Include="../Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll"
-          Condition="$([MSBuild]::IsOSPlatform('Windows')) And Exists('../Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll')">
+    <ProjectReference Include="Dependencies/FFmpegMediaWriter/FFmpegMediaWriter.csproj" />
+    <None Include="Dependencies/Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) And Exists('Dependencies/Direct3DVideoEncoder/build/x64/Release/Direct3DVideoEncoder.dll')">
       <Link>Direct3DVideoEncoder.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

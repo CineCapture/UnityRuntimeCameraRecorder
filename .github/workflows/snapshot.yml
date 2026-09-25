@@ -20,8 +20,6 @@ jobs:
     timeout-minutes: 45
     env:
       UNITY_VERSION: 6000.0.61f1
-      MEDIA_WRITER_REVISION: e4274cf710724a2feb0dca89bb99ab25365ca054
-      VIDEO_ENCODER_REVISION: c85b9c8ed9d50b4f18f7cfaa64638a51990d7a44
     defaults:
       run:
         shell: pwsh
@@ -32,22 +30,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           path: UnityRuntimeCameraRecorder
-          persist-credentials: false
-
-      - name: Check out media writer dependency
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: end3rbyte/FFmpegMediaWriter
-          ref: ${{ env.MEDIA_WRITER_REVISION }}
-          path: FFmpegMediaWriter
-          persist-credentials: false
-
-      - name: Check out video encoder dependency
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: cine-capture/Direct3DVideoEncoder
-          ref: ${{ env.VIDEO_ENCODER_REVISION }}
-          path: Direct3DVideoEncoder
+          submodules: recursive
           persist-credentials: false
 
       - name: Set up .NET SDK
@@ -63,18 +46,6 @@ jobs:
           version-file: None
           unity-version: ${{ env.UNITY_VERSION }}
           cache-installation: true
-
-      - name: Build native video encoder
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $msbuild = & $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe'
-          if ($LASTEXITCODE -ne 0 -or -not $msbuild) {
-            throw 'Visual Studio C++ build tools were not found.'
-          }
-          & ($msbuild | Select-Object -First 1) ../Direct3DVideoEncoder/Direct3DVideoEncoder.vcxproj /m /p:Configuration=Release /p:Platform=x64 /v:minimal
-          if ($LASTEXITCODE -ne 0) {
-            throw "Native build failed with exit code $LASTEXITCODE."
-          }
 
       - name: Build managed DLLs
         env:

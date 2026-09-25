@@ -1,0 +1,6 @@
+[submodule "Dependencies/FFmpegMediaWriter"]
+	path = Dependencies/FFmpegMediaWriter
+	url = https://github.com/cine-capture/FFmpegMediaWriter.git
+[submodule "Dependencies/Direct3DVideoEncoder"]
+	path = Dependencies/Direct3DVideoEncoder
+	url = https://github.com/cine-capture/Direct3DVideoEncoder.git
