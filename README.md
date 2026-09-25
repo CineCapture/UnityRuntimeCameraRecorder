@@ -87,6 +87,6 @@ dotnet build UnityRuntimeCameraRecorder.csproj -c Release \
   -p:UnityManagedPath="YOUR_UNITY_MANAGED_DIRECTORY"
 ```
 
-The output is `bin/Release/netstandard2.1/UnityRuntimeCameraRecorder.dll`. Keep the recorder, [FFmpegMediaWriter](https://github.com/CineCapture/FFmpegMediaWriter) and [Direct3DVideoEncoder](https://github.com/CineCapture/Direct3DVideoEncoder) repositories side by side when building from source.
+The output is `bin/Release/netstandard2.1/UnityRuntimeCameraRecorder.dll`. Keep the recorder, [FFmpegMediaWriter](https://github.com/cine-capture/FFmpegMediaWriter) and [Direct3DVideoEncoder](https://github.com/cine-capture/Direct3DVideoEncoder) repositories side by side when building from source.
 
-See [UnitySample](https://github.com/CineCapture/UnitySample) for an editable scene. The project uses the [MIT license](LICENSE); third-party licenses and codec patent rights are separate.
+See [UnitySample](https://github.com/cine-capture/UnitySample) for an editable scene. The project uses the [MIT license](LICENSE); third-party licenses and codec patent rights are separate.

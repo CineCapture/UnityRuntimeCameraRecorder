@@ -45,7 +45,7 @@ jobs:
       - name: Check out video encoder dependency
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          repository: CineCapture/Direct3DVideoEncoder
+          repository: cine-capture/Direct3DVideoEncoder
           ref: ${{ env.VIDEO_ENCODER_REVISION }}
           path: Direct3DVideoEncoder
           persist-credentials: false
